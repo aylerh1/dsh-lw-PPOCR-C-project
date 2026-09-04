@@ -1,0 +1,9 @@
+services:
+  test-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dsh-lw-ppocr-test
+    command: node test/test-plugin.js
+    volumes:
+      - ./:/app
