@@ -1,12 +1,12 @@
 # DeepSeek Harness (DSH) Cordis Plugin Patch
-# Mounts the lw-ppocr lightweight OCR plugin into the agent harness
-- id: dsh-lw-ppocr
-  plugin: dsh-lw-PPOCR-C-project
-  description: "Lightweight offline OCR plugin powered by lw.PPOCR.C"
-  config:
-    enabled: true
-    det: true
-    cls: true
-    rec: true
-    readingOrder: "horizontal-ltr"
-    confidenceThreshold: 0.5
+# Plain insert format supported by DSH bundle hot-mount
+- insert:
+    - id: dsh-lw-ppocr
+      name: dsh-lw-PPOCR-C-project
+      config:
+        enabled: true
+        det: true
+        cls: true
+        rec: true
+        readingOrder: "horizontal-ltr"
+        confidenceThreshold: 0.5
