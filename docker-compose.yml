@@ -1,4 +1,18 @@
 services:
+  web-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dsh-lw-ppocr-web
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - HOST=0.0.0.0
+    restart: unless-stopped
+    volumes:
+      - ./:/app
+
   test-service:
     build:
       context: .

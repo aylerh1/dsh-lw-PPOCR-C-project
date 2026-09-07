@@ -46,7 +46,9 @@
     "description": "基于 lw.PPOCR.C 的轻量级纯 C/WASM 离线 OCR 插件"
   },
   "scripts": {
-    "test": "node test/test-plugin.js"
+    "start": "node src/server.js",
+    "test": "node test/test-plugin.js",
+    "test:server": "node test/test-server.js"
   },
   "dependencies": {
     "jpeg-js": "^0.4.4",
