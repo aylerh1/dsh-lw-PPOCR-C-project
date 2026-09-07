@@ -62,13 +62,19 @@ console.log('详细文本行与包围盒:', result.lines);
 #### (2) 作为 Agent Tool 在大模型提示词中自动调用
 插件已自动向 DSH 智能体注册 `ocr_recognize` 工具，大模型在分析用户上传的票据、文档或屏幕截图时，可直接触发调用。
 
-### 4. Docker 容器化构建与测试验证
+### 4. 本地运行与测试验证
 
-本项目遵循严格的容器化测试标准，所有功能均可在隔离的 Docker 容器中执行回归验证：
+本项目零外部沉重依赖，开箱即用，可在本地直接执行全套自动化测试验证：
 
-```powershell
-# 构建并执行容器化自动化测试套件
-docker compose build
+```bash
+# 本地快速测试验证
+npm test
+# 或直接使用 Node.js 运行
+node test/test-plugin.js
+```
+
+同时也保留了 Dockerfile 与 docker-compose.yml 供容器化部署使用：
+```bash
 docker compose run --rm test-service
 ```
 

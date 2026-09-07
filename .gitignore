@@ -9,6 +9,7 @@ __pycache__/
 env/
 build/
 develop-eggs/
+dist/
 # Python相关
 lib64/
 parts/

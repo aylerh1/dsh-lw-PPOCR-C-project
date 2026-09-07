@@ -2,11 +2,10 @@
   "name": "dsh-lw-PPOCR-C-project",
   "version": "1.0.0",
   "description": "DeepSeek Harness (dsh) lightweight OCR plugin based on lw.PPOCR.C with zero Python/OpenCV/ONNX runtime dependencies",
-  "main": "dist/index.js",
-  "module": "dist/index.mjs",
-  "types": "dist/index.d.ts",
+  "main": "src/index.js",
+  "module": "src/index.js",
+  "types": "src/index.d.ts",
   "files": [
-    "dist",
     "src",
     "cordis.patch.yml",
     "README.md",
@@ -43,7 +42,6 @@
     "description": "基于 lw.PPOCR.C 的轻量级纯 C/WASM 离线 OCR 插件"
   },
   "scripts": {
-    "test": "node test/test-plugin.js",
-    "build": "node scripts/build.js"
+    "test": "node test/test-plugin.js"
   }
 }
