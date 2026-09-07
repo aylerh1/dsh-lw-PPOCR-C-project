@@ -17,13 +17,21 @@
 本项目已针对 GitHub 直接引用进行了预编译构建与全资产打包，用户无需安装本地编译工具链即可直接引入：
 
 ```bash
+
 # 通过 npm 直接从 GitHub 仓库安装
 npm install github:aylerh1/dsh-lw-PPOCR-C-project
 
 # 或使用 DeepSeek Harness CLI 直接挂载
 dsh plugin --profile web add https://github.com/aylerh1/dsh-lw-PPOCR-C-project
 ```
+更新：
+```
+# 方式一：直接更新当前插件（推荐，DSH 将自动将其激活为 Profile Layer）
+dsh plugin --profile web update dsh-lw-PPOCR-C-project
 
+# 或方式二：重新执行 add
+dsh plugin --profile web add https://github.com/aylerh1/dsh-lw-PPOCR-C-project
+```
 ### 2. DeepSeek Harness (Cordis) 配置挂载
 
 在 Harness 的 `cordis.patch.yml` 中添加插件配置项：
