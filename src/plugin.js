@@ -26,7 +26,7 @@ const defaultConfig = {
 function createOcrToolDefinition(engine) {
   return {
     name: 'ocr_recognize',
-    description: '使用基于 lw.PPOCR.C 的轻量级纯 C/WASM 离线 OCR 引擎识别图片文字',
+    description: '轻量级离线 OCR 文字识别引擎：从本地图片文件路径、Base64 或 Data URI 中提取所有文字内容与排版（当用户需要查看图片内容、识别图片文字、阅读图片或提取图像中文本时调用）',
     parameters: {
       type: 'object',
       properties: {
@@ -60,7 +60,7 @@ function createOcrToolDefinition(engine) {
     isConcurrencySafe: () => true,
     async execute(args) {
       const input = (args && typeof args === 'object')
-        ? (args.image || args.input || args.path || args.file)
+        ? (args.image || args.file_path || args.input || args.path || args.file)
         : args;
       const res = await engine.recognize(input, args);
       return res.text ? `OCR 识别结果:\n${res.text}` : '（未在图片中检测到可识别的文字内容）';
