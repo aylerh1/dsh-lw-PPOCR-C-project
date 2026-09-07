@@ -28,6 +28,9 @@
   "author": "aylerh",
   "license": "Apache-2.0",
   "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
     "category": "tool",
     "capabilities": [
       "ocr",
