@@ -3,11 +3,12 @@
  * Entry point for DeepSeek Harness OCR Plugin
  */
 
-const { name, apply, defaultConfig, LwPpocrEngine } = require('./plugin');
+const { name, inject, apply, defaultConfig, LwPpocrEngine } = require('./plugin');
 const { LwPpocrError } = require('./engine/lw-ppocr-engine');
 
 module.exports = {
   name,
+  inject,
   apply,
   defaultConfig,
   LwPpocrEngine,

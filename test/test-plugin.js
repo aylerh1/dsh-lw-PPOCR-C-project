@@ -86,8 +86,8 @@ async function runTests() {
       this[name] = service;
     },
     tools: {
-      register(toolName, toolDef) {
-        mockTools.push(toolDef);
+      register(tool, maybeDef) {
+        mockTools.push(maybeDef || tool);
       }
     },
     on(event, handler) {
