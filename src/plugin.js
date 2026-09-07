@@ -18,11 +18,54 @@ const defaultConfig = {
   modelType: 'ppocrv6-tiny'
 };
 
-let defineTool;
-try {
-  defineTool = require('@deepseek-ai/dsh-tools').defineTool;
-} catch (e) {
-  defineTool = (tool) => tool;
+/**
+ * Build standard JSON Schema compliant tool definition
+ * Compatible with Gemini, OpenAI, Anthropic, and DSH Native Agent Tools
+ * @param {LwPpocrEngine} engine
+ */
+function createOcrToolDefinition(engine) {
+  return {
+    name: 'ocr_recognize',
+    description: '使用基于 lw.PPOCR.C 的轻量级纯 C/WASM 离线 OCR 引擎识别图片文字',
+    parameters: {
+      type: 'object',
+      properties: {
+        image: {
+          type: 'string',
+          description: '图片文件绝对路径、Base64 编码字符串或 Data URI (data:image/...;base64,...)',
+        },
+        det: {
+          type: 'boolean',
+          description: '是否启用文字区域检测 (DET)，默认为 true',
+        },
+        cls: {
+          type: 'boolean',
+          description: '是否启用文字方向分类矫正 (CLS)，默认为 true',
+        },
+        rec: {
+          type: 'boolean',
+          description: '是否启用文字识别 (REC)，默认为 true',
+        },
+        readingOrder: {
+          type: 'string',
+          description: '文字读取顺序: horizontal-ltr, vertical-rtl, vertical-ltr',
+        }
+      },
+      required: ['image']
+    },
+    output: {
+      schema: { type: 'string' },
+      render: (_args, value) => [{ type: 'text', text: value }],
+    },
+    isConcurrencySafe: () => true,
+    async execute(args) {
+      const input = (args && typeof args === 'object')
+        ? (args.image || args.input || args.path || args.file)
+        : args;
+      const res = await engine.recognize(input, args);
+      return res.text ? `OCR 识别结果:\n${res.text}` : '（未在图片中检测到可识别的文字内容）';
+    }
+  };
 }
 
 /**
@@ -49,48 +92,7 @@ function apply(ctx, config = {}) {
 
   // 2. Register DSH Agent Tool if tools service is available
   try {
-    const toolDefinition = defineTool({
-      name: 'ocr_recognize',
-      description: '使用基于 lw.PPOCR.C 的轻量级纯 C/WASM 离线 OCR 引擎识别图片文字',
-      parameters: {
-        image: {
-          type: 'string',
-          required: true,
-          description: '图片文件路径、Base64 编码字符串或 Data URI (data:image/...;base64,...)',
-        },
-        det: {
-          type: 'boolean',
-          description: '是否启用文字区域检测 (DET)，默认为 true',
-        },
-        cls: {
-          type: 'boolean',
-          description: '是否启用文字方向分类矫正 (CLS)，默认为 true',
-        },
-        rec: {
-          type: 'boolean',
-          description: '是否启用文字识别 (REC)，默认为 true',
-        },
-        readingOrder: {
-          type: 'string',
-          description: '文字读取顺序: horizontal-ltr, vertical-rtl, vertical-ltr',
-        }
-      },
-      output: {
-        schema: {
-          type: 'object',
-          properties: {
-            text: { type: 'string', description: '提取的全部文本' },
-            lines: { type: 'array', description: '单行检测结果列表' },
-            durationMs: { type: 'number', description: '识别耗时(ms)' }
-          }
-        },
-        render: (_args, value) => [{ type: 'text', text: `OCR 识别结果:\n${value.text}` }],
-      },
-      isConcurrencySafe: () => true,
-      async execute(args) {
-        return await engine.recognize(args.image, args);
-      }
-    });
+    const toolDefinition = createOcrToolDefinition(engine);
 
     if (ctx.tools && typeof ctx.tools.register === 'function') {
       ctx.tools.register(toolDefinition);
@@ -116,5 +118,6 @@ module.exports = {
   inject,
   apply,
   defaultConfig,
-  LwPpocrEngine
+  LwPpocrEngine,
+  createOcrToolDefinition
 };

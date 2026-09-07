@@ -106,8 +106,8 @@ async function runTests() {
     det: true,
     rec: true
   });
-  assert(toolExecResult.lines.length > 0, 'Agent tool execution should return lines');
-  console.log(`  Agent Tool output text: "${toolExecResult.text}"`);
+  assert(typeof toolExecResult === 'string' && toolExecResult.length > 0, 'Agent tool execution should return text');
+  console.log(`  Agent Tool output text: "${toolExecResult}"`);
 
   // Test dispose
   if (mockContext.disposeHandler) {
