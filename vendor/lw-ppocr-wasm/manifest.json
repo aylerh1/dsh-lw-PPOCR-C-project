@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "package": {
+    "name": "lw.PPOCR.C-node-wasm",
+    "version": "0.1.0"
+  },
+  "runtime": {
+    "target": "node-wasm",
+    "wasmHostAbiVersion": 1,
+    "lwmVersion": "0.1",
+    "backend": "wasm128",
+    "simd": {
+      "wasm128": true
+    },
+    "threading": "single-threaded"
+  },
+  "compatibility": {
+    "node": ">=18"
+  },
+  "features": {
+    "det": true,
+    "cls": true,
+    "rec": true,
+    "fullOcr": true,
+    "adaptiveRecWidth": true
+  },
+  "assets": {
+    "runtime": {
+      "path": "runtime.cjs",
+      "sha256": "5508f3005ba9b66faa3e03c312b58d3fa02b1bef457ebad514e57d0fc43d1c92"
+    },
+    "det": {
+      "path": "det.lwm",
+      "sha256": "ba9164d371ac7003f90710c3106a344aeb906df2b0f1e7617fcf4608fa8cd66c"
+    },
+    "cls": {
+      "path": "cls.lwm",
+      "sha256": "d426c23f4758c9f21c5cbd0550ea9b90f1e7c0dd0289e1541e9754dee2e6ed61"
+    },
+    "rec": {
+      "path": "rec.lwm",
+      "sha256": "59440146ae64068b70441f9c16b5878ccba21e75b41cb27220c8d9cc2d61e0ae"
+    },
+    "dictionary": {
+      "path": "ppocr_keys.txt",
+      "sha256": "46e1b34ef45684cb46d75ac76d355341fe7f0a2c38d6ee02e63ae6b3878019fc"
+    }
+  }
+}
