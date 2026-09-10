@@ -1,6 +1,10 @@
 /**
- * Frontend Interactive Controller for PP-OCR Web
- * Supports Drag & Drop, Clipboard Paste, Canvas Bounding Box Visuals, RESTful API
+ * Frontend Interactive Controller for PP-OCR Web (Single-Image Mode)
+ * Features:
+ * 1. Pixel-perfect 1:1 Bounding Box Canvas Annotation
+ * 2. Drag & Drop, File Picker & Clipboard Paste for Single Image
+ * 3. High-Res Boxed Image Export
+ * 4. Ultra-Low Resident Memory (~10MB) Architecture Support
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -14,6 +18,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnRunOcr = document.getElementById('btn-run-ocr');
   const btnReset = document.getElementById('btn-reset');
   const btnLoadSample = document.getElementById('btn-load-sample');
+  const btnDownloadSingle = document.getElementById('btn-download-single');
+  const btnChangeImage = document.getElementById('btn-change-image');
   const btnCopyResult = document.getElementById('btn-copy-result');
   const copyBtnText = document.getElementById('copy-btn-text');
 
@@ -40,12 +46,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const outputJson = document.getElementById('output-json');
   const tabLinesBadge = document.getElementById('tab-lines-badge');
 
-  // Internal State
-  let currentImageDataUrl = null;
-  let ocrResultData = null;
+  // Internal Single Image State
+  let currentFile = null; // { name, dataUrl }
+  let currentResult = null;
   let hoveredLineIndex = -1;
 
-  // 1. Health Check Polling on Load
+  // 1. Health Check
   async function checkHealth() {
     try {
       const res = await fetch('/api/v1/health');
@@ -53,7 +59,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const data = await res.json();
         if (data.data && data.data.engine === 'ready') {
           healthIndicator.className = 'status-indicator ready';
-          healthText.textContent = '引擎就绪 (Ready)';
+          healthText.textContent = '引擎就绪 (常驻~10M)';
         }
       }
     } catch (e) {
@@ -62,6 +68,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
   checkHealth();
+  setInterval(checkHealth, 10000);
 
   // 2. Tab Switching
   tabBtns.forEach(btn => {
@@ -78,135 +85,81 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // 3. Image Loading & Preview
-  function loadFile(file) {
+  // 3. Single Image Loading
+  function loadSingleFile(file) {
     if (!file || !file.type.startsWith('image/')) {
-      showToast('请选择有效的图片文件 (PNG, JPG, BMP)', 'error');
+      showToast('请选择有效的图片文件 (支持 PNG, JPG, BMP)', 'error');
       return;
     }
+
     const reader = new FileReader();
     reader.onload = (e) => {
-      setImageData(e.target.result);
-      showToast(`已成功载入图片: ${file.name || '截图'}`, 'success');
+      currentFile = {
+        name: file.name || 'image.png',
+        dataUrl: e.target.result
+      };
+      currentResult = null;
+      renderImagePreview();
+      showToast(`已加载图片: ${currentFile.name}`, 'success');
+      // Automatically trigger OCR recognition
+      runOcr();
     };
     reader.readAsDataURL(file);
   }
 
-  function setImageData(dataUrl) {
-    currentImageDataUrl = dataUrl;
-    ocrResultData = null;
-    hoveredLineIndex = -1;
-
-    previewImage.src = dataUrl;
-    previewImage.onload = () => {
-      dropZone.classList.add('hidden');
-      previewContainer.classList.remove('hidden');
-      btnRunOcr.disabled = false;
+  function renderImagePreview() {
+    if (!currentFile) {
+      dropZone.classList.remove('hidden');
+      previewContainer.classList.add('hidden');
+      btnRunOcr.disabled = true;
+      btnDownloadSingle.disabled = true;
       clearCanvas();
-      // Auto run OCR recognition for seamless UX
-      runOcr();
+      resetMetricsDisplay();
+      return;
+    }
+
+    dropZone.classList.add('hidden');
+    previewContainer.classList.remove('hidden');
+    btnRunOcr.disabled = false;
+    btnDownloadSingle.disabled = true;
+
+    previewImage.src = currentFile.dataUrl;
+    previewImage.onload = () => {
+      syncCanvasResolution();
+      clearCanvas();
+      resetMetricsDisplay();
     };
   }
 
-  // File picker click
-  dropZone.addEventListener('click', () => fileInput.click());
-  fileInput.addEventListener('change', (e) => {
-    if (e.target.files && e.target.files[0]) {
-      loadFile(e.target.files[0]);
-    }
-  });
-
-  // Drag & Drop
-  ['dragenter', 'dragover'].forEach(eventName => {
-    dropZone.addEventListener(eventName, (e) => {
-      e.preventDefault();
-      dropZone.classList.add('dragover');
-    });
-  });
-
-  ['dragleave', 'drop'].forEach(eventName => {
-    dropZone.addEventListener(eventName, (e) => {
-      e.preventDefault();
-      dropZone.classList.remove('dragover');
-    });
-  });
-
-  dropZone.addEventListener('drop', (e) => {
-    if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) {
-      loadFile(e.dataTransfer.files[0]);
-    }
-  });
-
-  // Global Clipboard Paste (Ctrl+V)
-  window.addEventListener('paste', (e) => {
-    const items = e.clipboardData && e.clipboardData.items;
-    if (!items) return;
-
-    for (let i = 0; i < items.length; i++) {
-      if (items[i].type.indexOf('image') !== -1) {
-        const file = items[i].getAsFile();
-        if (file) {
-          loadFile(file);
-          break;
-        }
-      }
-    }
-  });
-
-  // Reset
-  btnReset.addEventListener('click', () => {
-    currentImageDataUrl = null;
-    ocrResultData = null;
-    hoveredLineIndex = -1;
-    fileInput.value = '';
-
-    dropZone.classList.remove('hidden');
-    previewContainer.classList.add('hidden');
-    btnRunOcr.disabled = true;
-
+  function resetMetricsDisplay() {
     durationVal.textContent = '--';
     linesCountVal.textContent = '0';
     roundtripVal.textContent = '--';
     confidenceVal.textContent = '--%';
-
     outputText.value = '';
     linesList.innerHTML = '';
     tabLinesBadge.textContent = '0';
     outputJson.textContent = '// 等待识别生成 RESTful 结构化数据...';
-
     resultEmpty.classList.remove('hidden');
-    clearCanvas();
-    showToast('已重置状态', 'success');
-  });
+    loadingOverlay.classList.add('hidden');
+  }
 
-  // Load Built-in Sample Image
-  btnLoadSample.addEventListener('click', async () => {
-    try {
-      showToast('正在获取内置样例图...', 'success');
-      const res = await fetch('/api/v1/sample');
-      if (!res.ok) throw new Error('获取样例图片失败');
-      const json = await res.json();
-      if (json.data && json.data.image) {
-        setImageData(json.data.image);
-      }
-    } catch (err) {
-      showToast(err.message, 'error');
-    }
-  });
-
-  // 4. Run OCR Recognition Request (POST /api/v1/ocr/recognitions)
+  // 4. OCR Execution
   async function runOcr() {
-    if (!currentImageDataUrl) return;
+    if (!currentFile) {
+      showToast('请先选择或拖入图片', 'error');
+      return;
+    }
 
-    loadingOverlay.classList.remove('hidden');
     btnRunOcr.disabled = true;
+    loadingOverlay.classList.remove('hidden');
     resultEmpty.classList.add('hidden');
 
     const startTime = performance.now();
 
     try {
       const payload = {
-        image: currentImageDataUrl,
+        image: currentFile.dataUrl,
         det: checkDet.checked,
         cls: checkCls.checked,
         rec: checkRec.checked,
@@ -215,45 +168,160 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const response = await fetch('/api/v1/ocr/recognitions', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
 
       const totalLatency = Math.round(performance.now() - startTime);
-      roundtripVal.textContent = totalLatency;
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `识别失败 (HTTP ${response.status})`);
+        const errJson = await response.json().catch(() => ({}));
+        throw new Error(errJson.message || `HTTP ${response.status}`);
       }
 
       const resData = await response.json();
       if (resData.status !== 'success' || !resData.data) {
-        throw new Error(resData.message || '返回数据格式不正确');
+        throw new Error(resData.message || '数据格式异常');
       }
 
-      ocrResultData = resData.data;
-      renderOcrResults(ocrResultData, totalLatency);
-      showToast(`识别成功！WASM 耗时: ${ocrResultData.durationMs}ms`, 'success');
-
+      currentResult = resData.data;
+      renderOcrResults(currentResult, totalLatency);
+      btnDownloadSingle.disabled = false;
+      showToast(`识别成功！共提取 ${currentResult.lines ? currentResult.lines.length : 0} 行文本`, 'success');
     } catch (err) {
-      console.error('OCR Error:', err);
-      showToast(`识别错误: ${err.message}`, 'error');
-      resultEmpty.classList.remove('hidden');
+      console.error('OCR recognition failed:', err);
+      showToast(`识别失败: ${err.message}`, 'error');
+      outputJson.textContent = `// 识别失败: ${err.message}`;
     } finally {
-      loadingOverlay.classList.add('hidden');
       btnRunOcr.disabled = false;
+      loadingOverlay.classList.add('hidden');
     }
   }
 
   btnRunOcr.addEventListener('click', runOcr);
 
-  // 5. Render OCR Results
+  // 5. Pixel-Perfect 1:1 Canvas Bounding Box Rendering
+  function clearCanvas() {
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+
+  function syncCanvasResolution() {
+    if (!previewImage.naturalWidth) return;
+    canvas.width = previewImage.naturalWidth;
+    canvas.height = previewImage.naturalHeight;
+    drawBoundingBoxes();
+  }
+
+  window.addEventListener('resize', () => {
+    drawBoundingBoxes();
+  });
+
+  function drawBoundingBoxes() {
+    if (!currentResult || !currentResult.lines || !currentResult.lines.length) {
+      clearCanvas();
+      return;
+    }
+
+    if (canvas.width !== previewImage.naturalWidth || canvas.height !== previewImage.naturalHeight) {
+      canvas.width = previewImage.naturalWidth;
+      canvas.height = previewImage.naturalHeight;
+    }
+
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const baseLineWidth = Math.max(2, Math.round(canvas.width / 500));
+
+    currentResult.lines.forEach((line, idx) => {
+      const box = line.box;
+      if (!box || box.length < 4) return;
+
+      const isHovered = (idx === hoveredLineIndex);
+      const isHighConf = (line.score || 0) >= 0.85;
+
+      ctx.beginPath();
+      ctx.moveTo(box[0][0], box[0][1]);
+      for (let i = 1; i < box.length; i++) {
+        ctx.lineTo(box[i][0], box[i][1]);
+      }
+      ctx.closePath();
+
+      if (isHovered) {
+        ctx.lineWidth = baseLineWidth + 2;
+        ctx.strokeStyle = '#f43f5e';
+        ctx.fillStyle = 'rgba(244, 63, 94, 0.35)';
+      } else {
+        ctx.lineWidth = baseLineWidth;
+        ctx.strokeStyle = isHighConf ? 'rgba(16, 185, 129, 0.95)' : 'rgba(99, 102, 241, 0.9)';
+        ctx.fillStyle = isHighConf ? 'rgba(16, 185, 129, 0.15)' : 'rgba(99, 102, 241, 0.12)';
+      }
+
+      ctx.fill();
+      ctx.stroke();
+    });
+  }
+
+  // Hover detection with physical 1:1 pixel coordinate transform
+  canvas.addEventListener('mousemove', (e) => {
+    if (!currentResult || !currentResult.lines) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const mouseY = (e.clientY - rect.top) * (canvas.height / rect.height);
+
+    let hitIndex = -1;
+    for (let i = 0; i < currentResult.lines.length; i++) {
+      const box = currentResult.lines[i].box;
+      if (!box || box.length < 4) continue;
+      if (pointInPolygon([mouseX, mouseY], box)) {
+        hitIndex = i;
+        break;
+      }
+    }
+
+    if (hitIndex !== hoveredLineIndex) {
+      hoveredLineIndex = hitIndex;
+      drawBoundingBoxes();
+
+      if (hitIndex !== -1) {
+        const line = currentResult.lines[hitIndex];
+        const scorePct = Math.round((line.score || 0) * 100);
+        tooltip.innerHTML = `<strong>#${hitIndex + 1} (${scorePct}%)</strong><br>${escapeHtml(line.text)}`;
+        tooltip.classList.remove('hidden');
+
+        const stageRect = document.getElementById('stage-wrapper').getBoundingClientRect();
+        const tooltipX = Math.min(stageRect.width - 240, Math.max(10, e.clientX - stageRect.left + 15));
+        const tooltipY = Math.min(stageRect.height - 80, Math.max(10, e.clientY - stageRect.top + 15));
+        tooltip.style.left = `${tooltipX}px`;
+        tooltip.style.top = `${tooltipY}px`;
+
+        const card = document.getElementById(`line-card-${hitIndex}`);
+        if (card) {
+          card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          document.querySelectorAll('.line-item-card').forEach(c => c.classList.remove('hovered'));
+          card.classList.add('hovered');
+        }
+      } else {
+        tooltip.classList.add('hidden');
+        document.querySelectorAll('.line-item-card').forEach(c => c.classList.remove('hovered'));
+      }
+    }
+  });
+
+  canvas.addEventListener('mouseleave', () => {
+    hoveredLineIndex = -1;
+    drawBoundingBoxes();
+    tooltip.classList.add('hidden');
+    document.querySelectorAll('.line-item-card').forEach(c => c.classList.remove('hovered'));
+  });
+
+  // 6. Render OCR Results Panel
   function renderOcrResults(data, totalLatency) {
-    // Top performance indicators
-    durationVal.textContent = data.durationMs;
+    resultEmpty.classList.add('hidden');
+    durationVal.textContent = data.durationMs || 0;
+    roundtripVal.textContent = totalLatency || '--';
+
     const lines = Array.isArray(data.lines) ? data.lines : [];
     linesCountVal.textContent = lines.length;
     tabLinesBadge.textContent = lines.length;
@@ -305,131 +373,190 @@ document.addEventListener('DOMContentLoaded', () => {
       data: data
     }, null, 2);
 
-    // Render Canvas Boxes
+    // Draw Canvas Bounding Boxes
     drawBoundingBoxes();
   }
 
-  // 6. Canvas Bounding Box Rendering
-  function clearCanvas() {
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-  }
-
-  function resizeCanvas() {
-    if (!previewImage.naturalWidth) return;
-    const rect = previewImage.getBoundingClientRect();
-    canvas.width = rect.width;
-    canvas.height = rect.height;
-    canvas.style.width = `${rect.width}px`;
-    canvas.style.height = `${rect.height}px`;
-    drawBoundingBoxes();
-  }
-
-  window.addEventListener('resize', resizeCanvas);
-
-  function drawBoundingBoxes() {
-    if (!ocrResultData || !ocrResultData.lines || !ocrResultData.lines.length) {
-      clearCanvas();
+  // 7. High-Res Boxed Image Single Download
+  async function downloadCurrentBoxedImage() {
+    if (!currentFile) {
+      showToast('未选择图片', 'error');
       return;
     }
 
-    const rect = previewImage.getBoundingClientRect();
-    if (canvas.width !== rect.width || canvas.height !== rect.height) {
-      canvas.width = rect.width;
-      canvas.height = rect.height;
+    try {
+      showToast('正在合成高清带框图片...', 'success');
+      const img = new Image();
+      img.onload = () => {
+        const offscreen = document.createElement('canvas');
+        offscreen.width = img.naturalWidth;
+        offscreen.height = img.naturalHeight;
+        const ctx = offscreen.getContext('2d');
+
+        // Draw original image
+        ctx.drawImage(img, 0, 0);
+
+        // Draw boxes
+        if (currentResult && currentResult.lines) {
+          const baseLineWidth = Math.max(2, Math.round(offscreen.width / 500));
+          const fontSize = Math.max(12, Math.round(offscreen.width / 80));
+          ctx.font = `600 ${fontSize}px sans-serif`;
+
+          currentResult.lines.forEach((line, idx) => {
+            const box = line.box;
+            if (!box || box.length < 4) return;
+            const isHighConf = (line.score || 0) >= 0.85;
+
+            ctx.beginPath();
+            ctx.moveTo(box[0][0], box[0][1]);
+            for (let i = 1; i < box.length; i++) {
+              ctx.lineTo(box[i][0], box[i][1]);
+            }
+            ctx.closePath();
+
+            ctx.lineWidth = baseLineWidth;
+            ctx.strokeStyle = isHighConf ? 'rgba(16, 185, 129, 0.95)' : 'rgba(99, 102, 241, 0.95)';
+            ctx.fillStyle = isHighConf ? 'rgba(16, 185, 129, 0.2)' : 'rgba(99, 102, 241, 0.2)';
+            ctx.fill();
+            ctx.stroke();
+
+            // Label tag on top of box
+            const tagX = box[0][0];
+            const tagY = Math.max(fontSize + 4, box[0][1] - 4);
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+            ctx.fillRect(tagX, tagY - fontSize - 2, fontSize * 2 + 8, fontSize + 4);
+            ctx.fillStyle = isHighConf ? '#34d399' : '#a5b4fc';
+            ctx.fillText(`#${idx + 1}`, tagX + 4, tagY - 2);
+          });
+        }
+
+        offscreen.toBlob((blob) => {
+          if (!blob) {
+            showToast('生成图片失败', 'error');
+            return;
+          }
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          const baseName = currentFile.name.replace(/\.[^/.]+$/, '');
+          a.download = `${baseName}_ocr_boxed.png`;
+          a.href = url;
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(() => {
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+          }, 1000);
+          showToast(`已成功下载: ${a.download}`, 'success');
+        }, 'image/png');
+      };
+      img.src = currentFile.dataUrl;
+    } catch (err) {
+      showToast(`导出图片失败: ${err.message}`, 'error');
     }
-
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    const scaleX = rect.width / previewImage.naturalWidth;
-    const scaleY = rect.height / previewImage.naturalHeight;
-
-    ocrResultData.lines.forEach((line, idx) => {
-      const box = line.box;
-      if (!box || box.length < 4) return;
-
-      const isHovered = (idx === hoveredLineIndex);
-      const isHighConf = (line.score || 0) >= 0.85;
-
-      ctx.beginPath();
-      ctx.moveTo(box[0][0] * scaleX, box[0][1] * scaleY);
-      for (let i = 1; i < box.length; i++) {
-        ctx.lineTo(box[i][0] * scaleX, box[i][1] * scaleY);
-      }
-      ctx.closePath();
-
-      if (isHovered) {
-        ctx.lineWidth = 3;
-        ctx.strokeStyle = '#f43f5e';
-        ctx.fillStyle = 'rgba(244, 63, 94, 0.25)';
-      } else {
-        ctx.lineWidth = 1.8;
-        ctx.strokeStyle = isHighConf ? 'rgba(16, 185, 129, 0.9)' : 'rgba(99, 102, 241, 0.85)';
-        ctx.fillStyle = isHighConf ? 'rgba(16, 185, 129, 0.12)' : 'rgba(99, 102, 241, 0.1)';
-      }
-
-      ctx.fill();
-      ctx.stroke();
-    });
   }
 
-  // Canvas Mouse Move & Tooltip
-  canvas.addEventListener('mousemove', (e) => {
-    if (!ocrResultData || !ocrResultData.lines) return;
+  btnDownloadSingle.addEventListener('click', downloadCurrentBoxedImage);
 
-    const rect = canvas.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
+  // 8. File Picker & Drag-and-Drop Listeners
+  dropZone.addEventListener('click', () => fileInput.click());
+  btnChangeImage.addEventListener('click', () => fileInput.click());
 
-    const scaleX = rect.width / previewImage.naturalWidth;
-    const scaleY = rect.height / previewImage.naturalHeight;
-
-    let hitIndex = -1;
-    for (let i = 0; i < ocrResultData.lines.length; i++) {
-      const box = ocrResultData.lines[i].box;
-      if (!box || box.length < 4) continue;
-      const scaledPoints = box.map(pt => [pt[0] * scaleX, pt[1] * scaleY]);
-      if (pointInPolygon([mouseX, mouseY], scaledPoints)) {
-        hitIndex = i;
-        break;
-      }
+  fileInput.addEventListener('change', (e) => {
+    if (e.target.files && e.target.files.length) {
+      loadSingleFile(e.target.files[0]);
+      fileInput.value = '';
     }
+  });
 
-    if (hitIndex !== hoveredLineIndex) {
-      hoveredLineIndex = hitIndex;
-      drawBoundingBoxes();
+  // Global Drag & Drop
+  ['dragenter', 'dragover'].forEach(eventName => {
+    window.addEventListener(eventName, (e) => {
+      e.preventDefault();
+      dropZone.classList.add('dragover');
+    });
+  });
 
-      // Highlight in list
-      document.querySelectorAll('.line-item-card').forEach(c => c.classList.remove('hovered'));
-      if (hitIndex !== -1) {
-        const card = document.getElementById(`line-card-${hitIndex}`);
-        if (card) {
-          card.classList.add('hovered');
-          card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  ['dragleave', 'drop'].forEach(eventName => {
+    window.addEventListener(eventName, (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+    });
+  });
+
+  window.addEventListener('drop', (e) => {
+    if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
+      loadSingleFile(e.dataTransfer.files[0]);
+    }
+  });
+
+  // Global Clipboard Paste (Ctrl+V)
+  window.addEventListener('paste', (e) => {
+    const items = e.clipboardData && e.clipboardData.items;
+    if (!items) return;
+
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf('image') !== -1) {
+        const file = items[i].getAsFile();
+        if (file) {
+          loadSingleFile(file);
+          break;
         }
       }
     }
+  });
 
-    if (hitIndex !== -1) {
-      const line = ocrResultData.lines[hitIndex];
-      tooltip.textContent = `[${Math.round((line.score || 0) * 100)}%] ${line.text}`;
-      tooltip.style.left = `${mouseX + 12}px`;
-      tooltip.style.top = `${mouseY + 12}px`;
-      tooltip.classList.remove('hidden');
-    } else {
-      tooltip.classList.add('hidden');
+  // Reset
+  function resetAll() {
+    currentFile = null;
+    currentResult = null;
+    hoveredLineIndex = -1;
+    fileInput.value = '';
+    renderImagePreview();
+    showToast('已清空当前图片与识别记录', 'info');
+  }
+
+  btnReset.addEventListener('click', resetAll);
+
+  // Load Built-in Sample Image
+  btnLoadSample.addEventListener('click', async () => {
+    try {
+      showToast('正在获取内置样例图...', 'info');
+      const res = await fetch('/api/v1/sample');
+      if (!res.ok) throw new Error('获取样例图片失败');
+      const json = await res.json();
+      if (json.data && json.data.image) {
+        currentFile = {
+          name: json.data.filename || 'sample.png',
+          dataUrl: json.data.image
+        };
+        currentResult = null;
+        renderImagePreview();
+        showToast('已成功加载系统样例图！', 'success');
+        runOcr();
+      }
+    } catch (err) {
+      showToast(err.message, 'error');
     }
   });
 
-  canvas.addEventListener('mouseleave', () => {
-    hoveredLineIndex = -1;
-    tooltip.classList.add('hidden');
-    document.querySelectorAll('.line-item-card').forEach(c => c.classList.remove('hovered'));
-    drawBoundingBoxes();
+  // Copy Result Text
+  btnCopyResult.addEventListener('click', async () => {
+    const text = outputText.value;
+    if (!text) {
+      showToast('暂无识别结果可复制', 'error');
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      copyBtnText.textContent = '已复制！';
+      showToast('已成功复制文本到剪贴板', 'success');
+      setTimeout(() => copyBtnText.textContent = '一键复制', 2000);
+    } catch (err) {
+      showToast('复制失败，请手动选择复制', 'error');
+    }
   });
 
-  // Point in polygon test
+  // Utility Functions
   function pointInPolygon(point, vs) {
     const x = point[0], y = point[1];
     let inside = false;
@@ -442,50 +569,42 @@ document.addEventListener('DOMContentLoaded', () => {
     return inside;
   }
 
-  // 7. Copy Text
-  btnCopyResult.addEventListener('click', async () => {
-    const text = outputText.value;
-    if (!text || !text.trim()) {
-      showToast('没有可复制的文本', 'error');
-      return;
-    }
-
-    try {
-      await navigator.clipboard.writeText(text);
-      copyBtnText.textContent = '已复制!';
-      btnCopyResult.style.borderColor = '#10b981';
-      showToast('全文已成功复制到剪贴板', 'success');
-      setTimeout(() => {
-        copyBtnText.textContent = '一键复制';
-        btnCopyResult.style.borderColor = '';
-      }, 2000);
-    } catch (e) {
-      showToast('复制失败，请手动选择复制', 'error');
-    }
-  });
-
-  // Helper Toast
-  function showToast(message, type = 'info') {
-    const container = document.getElementById('toast-container');
-    const toast = document.createElement('div');
-    toast.className = `toast toast-${type}`;
-    toast.innerHTML = `
-      <span>${type === 'success' ? '✔' : '⚠'}</span>
-      <span>${escapeHtml(message)}</span>
-    `;
-    container.appendChild(toast);
-    setTimeout(() => {
-      toast.style.opacity = '0';
-      toast.style.transform = 'translateY(10px)';
-      setTimeout(() => toast.remove(), 300);
-    }, 3000);
-  }
-
   function escapeHtml(str) {
     if (!str) return '';
-    return str.replace(/&/g, '&amp;')
-              .replace(/</g, '&lt;')
-              .replace(/>/g, '&gt;')
-              .replace(/"/g, '&quot;');
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  function showToast(message, type = 'info') {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+
+    let iconSvg = '';
+    if (type === 'success') {
+      iconSvg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>';
+    } else if (type === 'error') {
+      iconSvg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f43f5e" stroke-width="2.2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>';
+    } else {
+      iconSvg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="2.2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>';
+    }
+
+    toast.innerHTML = `
+      <div class="toast-icon">${iconSvg}</div>
+      <span class="toast-text">${escapeHtml(message)}</span>
+    `;
+
+    container.appendChild(toast);
+    setTimeout(() => toast.classList.add('show'), 10);
+    setTimeout(() => {
+      toast.classList.remove('show');
+      setTimeout(() => toast.remove(), 300);
+    }, 3200);
   }
 });

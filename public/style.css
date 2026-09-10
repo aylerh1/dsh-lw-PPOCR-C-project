@@ -85,6 +85,10 @@ body {
   font-family: var(--font-mono);
 }
 
+.hidden {
+  display: none !important;
+}
+
 /* 主容器 */
 .app-container {
   position: relative;
@@ -494,16 +498,27 @@ body {
   border-radius: var(--radius-md);
   border: 1px solid var(--glass-border);
   overflow: hidden;
+  padding: 12px;
 }
 
-.canvas-viewport img {
+.stage-wrapper {
+  position: relative;
+  display: inline-block;
+  line-height: 0;
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.stage-wrapper img {
   max-width: 100%;
   max-height: 480px;
-  object-fit: contain;
   display: block;
+  user-select: none;
+  border-radius: var(--radius-sm);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
 }
 
-.canvas-viewport canvas {
+.stage-wrapper canvas {
   position: absolute;
   top: 0;
   left: 0;
@@ -512,6 +527,8 @@ body {
   pointer-events: auto;
   cursor: crosshair;
 }
+
+
 
 .hover-tooltip {
   position: absolute;
@@ -531,6 +548,8 @@ body {
   transition: opacity 0.1s ease;
 }
 
+
+
 .canvas-hint-bar {
   display: flex;
   align-items: center;
@@ -538,6 +557,29 @@ body {
   font-size: 0.78rem;
   color: var(--text-dim);
   padding: 4px 8px;
+}
+
+.action-hint-group {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.btn-link {
+  background: none;
+  border: none;
+  color: var(--accent-primary);
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  padding: 0;
+  transition: var(--transition-fast);
+}
+
+.btn-link:hover {
+  color: #a5b4fc;
 }
 
 .confidence-legend {

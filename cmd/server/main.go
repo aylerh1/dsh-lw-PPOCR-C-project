@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -15,7 +14,10 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"runtime"
+	"runtime/debug"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -24,6 +26,7 @@ var (
 	publicDir  = "./public"
 	samplePath = "./test/fixtures/sample.png"
 	cliScript  = "./src/cli.js"
+	reqCounter uint64
 )
 
 // Standard JSON response wrapper
@@ -54,7 +57,7 @@ func sendError(w http.ResponseWriter, statusCode int, message string) {
 	})
 }
 
-// Global CORS & logging middleware
+// Global CORS middleware
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -83,10 +86,12 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 		Code:   http.StatusOK,
 		Status: "success",
 		Data: map[string]interface{}{
-			"service": "dsh-lw-ppocr-web",
-			"version": "1.0.0",
-			"engine":  "ready",
-			"uptime":  uptime,
+			"service":     "dsh-lw-ppocr-web",
+			"version":     "3.0.0",
+			"mode":        "ultra-low-memory-on-demand",
+			"engine":      "ready",
+			"uptime":      uptime,
+			"targetMem":   "~10MB resident",
 		},
 		Timestamp: time.Now().UnixMilli(),
 	})
@@ -118,19 +123,7 @@ func handleSample(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// OCR recognition request payload
-type OcrRequest struct {
-	Image               string   `json:"image"`
-	FilePath            string   `json:"file_path"`
-	Input               string   `json:"input"`
-	Det                 *bool    `json:"det"`
-	Cls                 *bool    `json:"cls"`
-	Rec                 *bool    `json:"rec"`
-	ReadingOrder        string   `json:"readingOrder"`
-	ConfidenceThreshold *float64 `json:"confidenceThreshold"`
-}
-
-// OCR recognition handler
+// OCR Single Recognition Handler (On-demand execution, zero idle memory!)
 func handleOcr(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		sendError(w, http.StatusMethodNotAllowed, "Method Not Allowed")
@@ -150,63 +143,66 @@ func handleOcr(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req OcrRequest
-	if err := json.Unmarshal(bodyBytes, &req); err != nil {
+	var rawMap map[string]interface{}
+	if err := json.Unmarshal(bodyBytes, &rawMap); err != nil {
 		sendError(w, http.StatusBadRequest, fmt.Sprintf("Invalid JSON: 请求体不是合法的 JSON 格式 (%v)", err))
 		return
 	}
 
-	targetImage := req.Image
-	if targetImage == "" {
-		targetImage = req.FilePath
+	imgVal, _ := rawMap["image"].(string)
+	if imgVal == "" {
+		imgVal, _ = rawMap["file_path"].(string)
 	}
-	if targetImage == "" {
-		targetImage = req.Input
+	if imgVal == "" {
+		imgVal, _ = rawMap["input"].(string)
 	}
-	if strings.TrimSpace(targetImage) == "" {
+	if strings.TrimSpace(imgVal) == "" {
 		sendError(w, http.StatusBadRequest, "缺少必需参数: image (支持 Base64、Data URI 或图片绝对路径)")
 		return
 	}
 
-	// Call CLI worker with timeout
-	ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
-	defer cancel()
+	reqID := fmt.Sprintf("req_%d_%d", time.Now().UnixMilli(), atomic.AddUint64(&reqCounter, 1))
+	rawMap["id"] = reqID
+	reqBytes, _ := json.Marshal(rawMap)
 
-	cmd := exec.CommandContext(ctx, "node", cliScript)
-	cmd.Stdin = bytes.NewReader(bodyBytes)
+	// Launch on-demand isolated Node CLI process (exits immediately after inference)
+	cmd := exec.Command("node", "--max-old-space-size=48", "--optimize_for_size", cliScript)
+	cmd.Stdin = bytes.NewReader(reqBytes)
 
 	var stdoutBuf, stderrBuf bytes.Buffer
 	cmd.Stdout = &stdoutBuf
 	cmd.Stderr = &stderrBuf
 
-	execErr := cmd.Run()
-	outputBytes := stdoutBuf.Bytes()
-
-	if execErr != nil {
-		// Attempt to parse structured error from stdout
-		if len(outputBytes) > 0 {
-			var errResp JsonResponse
-			if json.Unmarshal(outputBytes, &errResp) == nil && errResp.Code != 0 {
-				sendJSON(w, errResp.Code, errResp)
-				return
-			}
-		}
+	if err := cmd.Run(); err != nil {
 		errMsg := stderrBuf.String()
 		if errMsg == "" {
-			errMsg = execErr.Error()
+			errMsg = err.Error()
 		}
+		log.Printf("[ocr-err] CLI execution failed: %s\n", errMsg)
 		sendError(w, http.StatusInternalServerError, fmt.Sprintf("OCR 推理执行异常: %s", errMsg))
 		return
 	}
 
-	// Directly forward JSON response
+	// Immediate Memory Reclaim: force GC and return heap pages to OS
+	go func() {
+		runtime.GC()
+		debug.FreeOSMemory()
+	}()
+
+	respBytes := bytes.TrimSpace(stdoutBuf.Bytes())
+	var parsedResp JsonResponse
+	if err := json.Unmarshal(respBytes, &parsedResp); err == nil && parsedResp.Code != 0 {
+		sendJSON(w, parsedResp.Code, parsedResp)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(outputBytes)
+	_, _ = w.Write(respBytes)
 }
 
-// Serve static assets from public/ directory
+// Serve static assets from public/ directory with anti-cache headers
 func handleStatic(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		sendError(w, http.StatusMethodNotAllowed, "Method Not Allowed")
@@ -255,18 +251,16 @@ func handleStatic(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if ext == ".html" {
-		w.Header().Set("Cache-Control", "no-cache")
-	} else {
-		w.Header().Set("Cache-Control", "public, max-age=86400")
-	}
+	// Strictly disable caching in web mode to prevent stale asset cache
+	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Expires", "0")
 
 	w.Header().Set("Content-Type", contentType)
 	http.ServeFile(w, r, absTarget)
 }
 
 func main() {
-	// Initialize MIME types
 	_ = mime.AddExtensionType(".wasm", "application/wasm")
 	_ = mime.AddExtensionType(".js", "application/javascript; charset=utf-8")
 	_ = mime.AddExtensionType(".css", "text/css; charset=utf-8")
@@ -281,7 +275,6 @@ func main() {
 		host = "0.0.0.0"
 	}
 
-	// Resolve public dir from environment if specified
 	if envPublic := os.Getenv("PUBLIC_DIR"); envPublic != "" {
 		publicDir = envPublic
 	}
@@ -292,15 +285,19 @@ func main() {
 		cliScript = envCli
 	}
 
+	log.Println("[server] Ultra-Low-Memory mode enabled: Zero persistent background workers.")
+	log.Println("[server] Resident memory target: ~10MB. OCR inference executed on-demand.")
+
 	mux := http.NewServeMux()
 
-	// 1. API Endpoints
+	// API Endpoints
+	mux.HandleFunc("/health", handleHealth)
 	mux.HandleFunc("/api/v1/health", handleHealth)
 	mux.HandleFunc("/api/v1/sample", handleSample)
 	mux.HandleFunc("/api/v1/ocr/recognitions", handleOcr)
 	mux.HandleFunc("/api/v1/ocr", handleOcr)
 
-	// 2. Static Web Frontend
+	// Static Web Frontend
 	mux.HandleFunc("/", handleStatic)
 
 	addr := net.JoinHostPort(host, port)
