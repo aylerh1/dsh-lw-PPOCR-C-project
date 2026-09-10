@@ -4,6 +4,11 @@
 
 项目彻底摆脱了传统 OCR 方案中对 Python、OpenCV、ONNX Runtime 等动辄数 GB 沉重依赖包的束缚，通过内置官方预编译的 WebAssembly 推理内核与精简版 PP-OCRv6 tiny 模型资产（总计仅约 7MB），为 DeepSeek Harness 智能体生态与独立容器服务提供极速（100~200ms）、零外部环境依赖、真正离线且开箱即用的文本检测（DET）、文字方向纠偏（CLS）与字符识别（REC）全流程能力。
 
+## 大小与速度
+镜像大小：155M；
+内存占用大小：5M；
+耗时：1.x秒每页；
+
 ## 页面样式
 ### dsh-插件
 ![1](./images/1.png)

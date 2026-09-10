@@ -48,7 +48,9 @@
   "scripts": {
     "start": "node src/server.js",
     "test": "node test/test-plugin.js",
-    "test:server": "node test/test-server.js"
+    "test:cli": "node test/test-cli.js",
+    "test:server": "node test/test-server.js",
+    "test:live": "node test/test-live-server.js"
   },
   "dependencies": {
     "jpeg-js": "^0.4.4",
