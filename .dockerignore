@@ -1,0 +1,7 @@
+.git
+node_modules
+build/
+csrc/build/
+scratch/
+.idea
+.vscode

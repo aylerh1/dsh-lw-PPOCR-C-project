@@ -13,7 +13,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -23,9 +22,10 @@ var (
 	startTime    = time.Now()
 	publicDir    = "./public"
 	samplePath   = "./test/fixtures/sample.png"
-	modelDir     = "./vendor/lw-ppocr-wasm"
-	nativeEngine *NativeOcrEngine
-	reqCounter   uint64
+	modelDir       = "./vendor/lw-ppocr-wasm"
+	nativeEngine   *NativeOcrEngine
+	currentWorkers = 4
+	reqCounter     uint64
 )
 
 // Standard JSON response wrapper
@@ -89,7 +89,7 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 			"version":   "4.0.0",
 			"engine":    "native-c-avx2",
 			"uptime":    uptime,
-			"workers":   runtime.NumCPU(),
+			"workers":   currentWorkers,
 			"targetMem": "~25MB resident",
 		},
 		Timestamp: time.Now().UnixMilli(),
@@ -306,12 +306,21 @@ func main() {
 
 	modelDir = findModelDir()
 
+	workerCount := 4
+	if envWorkers := os.Getenv("OCR_WORKERS"); envWorkers != "" {
+		var w int
+		if _, err := fmt.Sscanf(envWorkers, "%d", &w); err == nil && w > 0 {
+			workerCount = w
+		}
+	}
+	currentWorkers = workerCount
+
 	// Initialize resident Native C/AVX2 OCR Engine
 	var err error
 	nativeEngine, err = NewNativeOcrEngine(NativeEngineConfig{
 		ModelDir:      modelDir,
 		UseClassifier: true,
-		WorkerCount:   runtime.NumCPU(),
+		WorkerCount:   workerCount,
 		RecMaxWidth:   960,
 	})
 	if err != nil {
@@ -319,7 +328,7 @@ func main() {
 	}
 	defer nativeEngine.Close()
 
-	log.Printf("[server] High-Performance Native C/AVX2 OCR Engine loaded from %s with %d workers\n", modelDir, runtime.NumCPU())
+	log.Printf("[server] High-Performance Native C/AVX2 OCR Engine loaded from %s with %d workers\n", modelDir, workerCount)
 
 	mux := http.NewServeMux()
 

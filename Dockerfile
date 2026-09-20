@@ -1,36 +1,47 @@
-# Stage 1: Build lightweight Go HTTP Server binary
-FROM golang:1.23-alpine AS builder
+# Stage 1: Build C static library and Go CGO server
+FROM golang:1.24-alpine AS builder
 
+RUN apk add --no-cache build-base cmake
+
+WORKDIR /build
+
+# 1. Build lw.PPOCR.C native C11 static library with AVX2 & SIMD
+COPY csrc/ ./csrc/
+WORKDIR /build/csrc
+RUN rm -rf build && \
+    cmake -B build -DCMAKE_BUILD_TYPE=Release -DLW_RUNTIME_ONLY=ON -DLW_BUILD_HTTP_DEMO=OFF && \
+    cmake --build build --target lw_ppocr_c -j4
+
+# 2. Compile Go CGO server statically
 WORKDIR /build
 COPY go.mod ./
 COPY cmd/ ./cmd/
+RUN CGO_ENABLED=1 GOOS=linux go build -ldflags="-s -w" -o /build/server ./cmd/server
 
-# Compile static Go binary without CGO, strip symbols to minimize size
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /build/server ./cmd/server
+# Stage 2: Ultra-Minimal Native Runtime (~25MB total image size)
+FROM alpine:3.21
 
-# Stage 2: Minimal Runtime Image
-FROM node:20-alpine
+# Install runtime dependencies (musl libc already includes pthread/m, add ca-certificates)
+RUN apk add --no-cache ca-certificates
 
 WORKDIR /app
 
-# 1. Install Node production dependencies for on-demand CLI worker
-COPY package.json package-lock.json* ./
-RUN npm install --omit=dev
-
-# 2. Copy compiled Go binary to system PATH to avoid volume mount overwrite
+# Copy compiled native server binary to system PATH (not overwritten by volume mount)
 COPY --from=builder /build/server /usr/local/bin/server
 RUN chmod +x /usr/local/bin/server
 
-# 3. Copy application assets, WASM engine, web, and tests
-COPY cordis.patch.yml ./
-COPY src/ ./src/
+# Copy application assets, models, and public web files
 COPY vendor/ ./vendor/
 COPY public/ ./public/
 COPY test/ ./test/
 
 ENV PORT=3000
 ENV HOST=0.0.0.0
+ENV MODEL_DIR=/app/vendor/lw-ppocr-wasm
+ENV PUBLIC_DIR=/app/public
+ENV SAMPLE_PATH=/app/test/fixtures/sample.png
+
 EXPOSE 3000
 
-# Go native net/http server runs as PID 1 daemon
+# Run native C/Go server
 CMD ["/usr/local/bin/server"]
