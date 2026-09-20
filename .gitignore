@@ -8,6 +8,7 @@ __pycache__/
 .Python
 env/
 build/
+csrc/build/
 develop-eggs/
 dist/
 # Python相关

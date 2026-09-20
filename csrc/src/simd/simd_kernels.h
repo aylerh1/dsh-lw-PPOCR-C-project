@@ -1,0 +1,170 @@
+#ifndef LW_SIMD_KERNELS_H
+#define LW_SIMD_KERNELS_H
+
+/* Architecture-specific kernels; use only after checking lw_cpu_simd_level(). */
+
+#include "scalar_kernels.h"
+
+#include <stdint.h>
+
+void lw_sse2_binary_contiguous_f32(lw_scalar_binary_op operation, const float* left,
+                                   const float* right, float* output, uint64_t element_count);
+void lw_sse2_binary_right_scalar_f32(lw_scalar_binary_op operation, const float* left, float right,
+                                     float* output, uint64_t element_count);
+void lw_avx2_binary_contiguous_f32(lw_scalar_binary_op operation, const float* left,
+                                   const float* right, float* output, uint64_t element_count);
+void lw_avx2_binary_right_scalar_f32(lw_scalar_binary_op operation, const float* left, float right,
+                                     float* output, uint64_t element_count);
+void lw_avx2_erf_f32(const float* input, float* output, uint64_t element_count);
+void lw_avx2_gelu_f32(const float* input, float* output, uint64_t element_count);
+void lw_avx2_softmax_contiguous_f32(const float* input, float* output, uint64_t row_count,
+                                    uint64_t axis_count);
+void lw_avx2_ctc_emitted_softmax_contiguous_f32(const float* input,
+                                                const uint32_t* best_indices,
+                                                float* emitted_probabilities,
+                                                uint64_t row_count, uint64_t axis_count);
+void lw_wasm128_erf_f32(const float* input, float* output, uint64_t element_count);
+
+void lw_sse2_matmul_shared_f32(const float* input, const float* weights, float* output,
+                               uint32_t batch_count, uint32_t rows, uint32_t inner_dimension,
+                               uint32_t columns);
+void lw_avx2_matmul_shared_f32(const float* input, const float* weights, float* output,
+                               uint32_t batch_count, uint32_t rows, uint32_t inner_dimension,
+                               uint32_t columns);
+void lw_avx2_packed_matmul_shared_f32(const float* input, const float* packed_weights,
+                                      float* output, uint32_t batch_count, uint32_t rows,
+                                      uint32_t inner_dimension, uint32_t columns);
+void lw_avx2_packed_matmul_bias_argmax_f32(
+    const float* input, const float* packed_weights, const float* bias, float* output,
+    uint32_t* best_indices, uint32_t batch_count, uint32_t rows,
+    uint32_t inner_dimension, uint32_t columns);
+void lw_avx2_fma_packed_matmul_bias_argmax_f32(
+    const float* input, const float* packed_weights, const float* bias, float* output,
+    uint32_t* best_indices, uint32_t batch_count, uint32_t rows,
+    uint32_t inner_dimension, uint32_t columns);
+void lw_sse2_conv1x1_unit_f32(const float* input, const float* weights, const float* bias,
+                              float* output, const int32_t input_dimensions[4],
+                              const int32_t output_dimensions[4], uint32_t groups,
+                              uint32_t input_channels_per_group,
+                              uint32_t output_channels_per_group);
+void lw_avx2_conv1x1_unit_f32(const float* input, const float* weights, const float* bias,
+                              float* output, const int32_t input_dimensions[4],
+                              const int32_t output_dimensions[4], uint32_t groups,
+                              uint32_t input_channels_per_group,
+                              uint32_t output_channels_per_group);
+void lw_sse2_packed_conv1x1_f32(const float* input, const float* packed_weights, const float* bias,
+                                float* output, const int32_t input_dimensions[4],
+                                const int32_t output_dimensions[4]);
+void lw_avx2_fma_packed_conv1x1_f32(const float* input, const float* packed_weights, const float* bias,
+                                      float* output, const int32_t input_dimensions[4],
+                                      const int32_t output_dimensions[4]);
+void lw_avx2_fma_packed_conv1x1_8x8_f32(
+    const float* input, const float* packed_weights, const float* bias, float* output,
+    const int32_t input_dimensions[4], const int32_t output_dimensions[4]);
+void lw_avx2_packed_conv1x1_f32(const float* input, const float* packed_weights, const float* bias,
+                                float* output, const int32_t input_dimensions[4],
+                                const int32_t output_dimensions[4]);
+void lw_neon_packed_conv1x1_f32(const float* input, const float* packed_weights, const float* bias,
+                                float* output, const int32_t input_dimensions[4],
+                                const int32_t output_dimensions[4]);
+void lw_lsx_packed_conv1x1_f32(const float* input, const float* packed_weights, const float* bias,
+                               float* output, const int32_t input_dimensions[4],
+                               const int32_t output_dimensions[4]);
+void lw_sse2_depthwise_conv3x3_unit_pad1_f32(const float* input, const float* weights,
+                                             const float* bias, float* output,
+                                             const int32_t dimensions[4]);
+void lw_avx2_depthwise_conv3x3_unit_pad1_f32(const float* input, const float* weights,
+                                             const float* bias, float* output,
+                                             const int32_t dimensions[4]);
+void lw_sse2_depthwise_conv3x3_stride2x1_pad1_f32(
+    const float* input, const float* weights, const float* bias, float* output,
+    const int32_t input_dimensions[4], const int32_t output_dimensions[4]);
+void lw_avx2_depthwise_conv3x3_stride2x1_pad1_f32(
+    const float* input, const float* weights, const float* bias, float* output,
+    const int32_t input_dimensions[4], const int32_t output_dimensions[4]);
+void lw_sse2_depthwise_conv5x5_unit_pad2_f32(const float* input, const float* weights,
+                                             const float* bias, float* output,
+                                             const int32_t dimensions[4]);
+void lw_avx2_depthwise_conv5x5_unit_pad2_f32(const float* input, const float* weights,
+                                             const float* bias, float* output,
+                                             const int32_t dimensions[4]);
+void lw_avx2_depthwise_conv9x9_unit_pad4_f32(const float* input, const float* weights,
+                                             const float* bias, float* output,
+                                             const int32_t dimensions[4]);
+void lw_sse2_conv3x3_unit_pad1_f32(const float* input, const float* weights, const float* bias,
+                                   float* output, const int32_t input_dimensions[4],
+                                   const int32_t output_dimensions[4]);
+void lw_avx2_conv3x3_unit_pad1_f32(const float* input, const float* weights, const float* bias,
+                                   float* output, const int32_t input_dimensions[4],
+                                   const int32_t output_dimensions[4]);
+void lw_avx2_conv7x7_unit_pad3_f32(const float* input, const float* weights, const float* bias,
+                                   float* output, const int32_t input_dimensions[4],
+                                   const int32_t output_dimensions[4]);
+void lw_avx2_conv7x7_four_outputs_unit_pad3_f32(
+    const float* input, const float* weights, const float* bias, float* output,
+    const int32_t input_dimensions[4], const int32_t output_dimensions[4]);
+void lw_avx2_conv5x5_unit_pad2_f32(const float* input, const float* weights, const float* bias,
+                                   float* output, const int32_t input_dimensions[4],
+                                   const int32_t output_dimensions[4]);
+void lw_avx2_conv5x5_four_outputs_unit_pad2_f32(
+    const float* input, const float* weights, const float* bias, float* output,
+    const int32_t input_dimensions[4], const int32_t output_dimensions[4]);
+void lw_avx2_conv7x1_unit_pad3_f32(const float* input, const float* weights, const float* bias,
+                                   float* output, const int32_t input_dimensions[4],
+                                   const int32_t output_dimensions[4]);
+void lw_avx2_conv1x7_unit_pad3_f32(const float* input, const float* weights, const float* bias,
+                                   float* output, const int32_t input_dimensions[4],
+                                   const int32_t output_dimensions[4]);
+void lw_avx2_conv5x1_unit_pad2_f32(const float* input, const float* weights, const float* bias,
+                                   float* output, const int32_t input_dimensions[4],
+                                   const int32_t output_dimensions[4]);
+void lw_avx2_conv1x5_unit_pad2_f32(const float* input, const float* weights, const float* bias,
+                                   float* output, const int32_t input_dimensions[4],
+                                   const int32_t output_dimensions[4]);
+void lw_neon_conv3x3_unit_pad1_f32(const float* input, const float* weights, const float* bias,
+                                   float* output, const int32_t input_dimensions[4],
+                                   const int32_t output_dimensions[4]);
+void lw_sse2_conv2x2_unit_pad_end1_f32(const float* input, const float* weights, const float* bias,
+                                       float* output, const int32_t input_dimensions[4],
+                                       const int32_t output_dimensions[4]);
+void lw_avx2_conv2x2_unit_pad_end1_f32(const float* input, const float* weights, const float* bias,
+                                       float* output, const int32_t input_dimensions[4],
+                                       const int32_t output_dimensions[4]);
+void lw_sse2_conv3x3_stride2_pad1_f32(const float* input, const float* weights, const float* bias,
+                                      float* output, const int32_t input_dimensions[4],
+                                      const int32_t output_dimensions[4]);
+void lw_avx2_conv3x3_stride2_pad1_f32(const float* input, const float* weights, const float* bias,
+                                      float* output, const int32_t input_dimensions[4],
+                                      const int32_t output_dimensions[4]);
+void lw_avx2_packed_conv3x3_stride2_pad1_f32(
+    const float* input, const float* packed_weights, const float* bias, float* output,
+    const int32_t input_dimensions[4], const int32_t output_dimensions[4]);
+void lw_avx2_fma_packed_conv3x3_stride2_pad1_f32(
+    const float* input, const float* packed_weights, const float* bias, float* output,
+    const int32_t input_dimensions[4], const int32_t output_dimensions[4]);
+void lw_avx2_conv_transpose2x2_stride2_f32(const float* input, const float* weights,
+                                           const float* bias, float* output,
+                                           const int32_t input_dimensions[4],
+                                           const int32_t output_dimensions[4]);
+void lw_avx2_conv_transpose2x2_stride2_range_f32(
+    const float* input, const float* weights, const float* bias, float* output,
+    const int32_t input_dimensions[4], const int32_t output_dimensions[4],
+    uint32_t output_channel_begin, uint32_t output_channel_end);
+void lw_sse2_conv_transpose2x2_stride2_f32(const float* input, const float* weights,
+                                           const float* bias, float* output,
+                                           const int32_t input_dimensions[4],
+                                           const int32_t output_dimensions[4]);
+void lw_sse2_conv_transpose2x2_stride2_range_f32(
+    const float* input, const float* weights, const float* bias, float* output,
+    const int32_t input_dimensions[4], const int32_t output_dimensions[4],
+    uint32_t output_channel_begin, uint32_t output_channel_end);
+void lw_neon_conv_transpose2x2_stride2_f32(const float* input, const float* weights,
+                                           const float* bias, float* output,
+                                           const int32_t input_dimensions[4],
+                                           const int32_t output_dimensions[4]);
+void lw_neon_conv_transpose2x2_stride2_range_f32(
+    const float* input, const float* weights, const float* bias, float* output,
+    const int32_t input_dimensions[4], const int32_t output_dimensions[4],
+    uint32_t output_channel_begin, uint32_t output_channel_end);
+
+#endif
