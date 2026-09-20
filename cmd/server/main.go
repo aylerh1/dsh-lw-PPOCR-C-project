@@ -11,22 +11,21 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
 	"runtime"
-	"runtime/debug"
 	"strings"
 	"sync/atomic"
 	"time"
 )
 
 var (
-	startTime  = time.Now()
-	publicDir  = "./public"
-	samplePath = "./test/fixtures/sample.png"
-	cliScript  = "./src/cli.js"
-	reqCounter uint64
+	startTime    = time.Now()
+	publicDir    = "./public"
+	samplePath   = "./test/fixtures/sample.png"
+	modelDir     = "./vendor/lw-ppocr-wasm"
+	nativeEngine *NativeOcrEngine
+	reqCounter   uint64
 )
 
 // Standard JSON response wrapper
@@ -86,12 +85,12 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 		Code:   http.StatusOK,
 		Status: "success",
 		Data: map[string]interface{}{
-			"service":     "dsh-lw-ppocr-web",
-			"version":     "3.0.0",
-			"mode":        "ultra-low-memory-on-demand",
-			"engine":      "ready",
-			"uptime":      uptime,
-			"targetMem":   "~10MB resident",
+			"service":   "dsh-lw-ppocr-web",
+			"version":   "4.0.0",
+			"engine":    "native-c-avx2",
+			"uptime":    uptime,
+			"workers":   runtime.NumCPU(),
+			"targetMem": "~25MB resident",
 		},
 		Timestamp: time.Now().UnixMilli(),
 	})
@@ -123,7 +122,7 @@ func handleSample(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// OCR Single Recognition Handler (On-demand execution, zero idle memory!)
+// OCR Recognition Handler using resident Native C CGO Engine
 func handleOcr(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		sendError(w, http.StatusMethodNotAllowed, "Method Not Allowed")
@@ -161,45 +160,50 @@ func handleOcr(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	reqID := fmt.Sprintf("req_%d_%d", time.Now().UnixMilli(), atomic.AddUint64(&reqCounter, 1))
-	rawMap["id"] = reqID
-	reqBytes, _ := json.Marshal(rawMap)
+	_ = atomic.AddUint64(&reqCounter, 1)
 
-	// Launch on-demand isolated Node CLI process (exits immediately after inference)
-	cmd := exec.Command("node", "--max-old-space-size=48", "--optimize_for_size", cliScript)
-	cmd.Stdin = bytes.NewReader(reqBytes)
+	// 1. Fast Go native image decode to interleaved BGR8 (5-15ms)
+	bgr, err := DecodeImageToBGR(imgVal)
+	if err != nil {
+		sendError(w, http.StatusBadRequest, fmt.Sprintf("图像解码失败: %v", err))
+		return
+	}
 
-	var stdoutBuf, stderrBuf bytes.Buffer
-	cmd.Stdout = &stdoutBuf
-	cmd.Stderr = &stderrBuf
+	// 2. Direct high-performance CGO inference (~15-25ms)
+	result, err := nativeEngine.Recognize(bgr, 960)
+	if err != nil {
+		log.Printf("[ocr-err] Native CGO inference failed: %v\n", err)
+		sendError(w, http.StatusInternalServerError, fmt.Sprintf("OCR 推理执行异常: %v", err))
+		return
+	}
 
-	if err := cmd.Run(); err != nil {
-		errMsg := stderrBuf.String()
-		if errMsg == "" {
-			errMsg = err.Error()
+	// 3. Filter by confidenceThreshold if requested
+	threshold := 0.0
+	if thVal, ok := rawMap["confidenceThreshold"].(float64); ok {
+		threshold = thVal
+	}
+	if threshold > 0 {
+		filteredLines := make([]OcrLine, 0, len(result.Lines))
+		var filteredText strings.Builder
+		for _, l := range result.Lines {
+			if l.Score >= threshold {
+				filteredLines = append(filteredLines, l)
+				if filteredText.Len() > 0 {
+					filteredText.WriteString("\n")
+				}
+				filteredText.WriteString(l.Text)
+			}
 		}
-		log.Printf("[ocr-err] CLI execution failed: %s\n", errMsg)
-		sendError(w, http.StatusInternalServerError, fmt.Sprintf("OCR 推理执行异常: %s", errMsg))
-		return
+		result.Lines = filteredLines
+		result.Text = filteredText.String()
 	}
 
-	// Immediate Memory Reclaim: force GC and return heap pages to OS
-	go func() {
-		runtime.GC()
-		debug.FreeOSMemory()
-	}()
-
-	respBytes := bytes.TrimSpace(stdoutBuf.Bytes())
-	var parsedResp JsonResponse
-	if err := json.Unmarshal(respBytes, &parsedResp); err == nil && parsedResp.Code != 0 {
-		sendJSON(w, parsedResp.Code, parsedResp)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(respBytes)
+	sendJSON(w, http.StatusOK, JsonResponse{
+		Code:      http.StatusOK,
+		Status:    "success",
+		Data:      result,
+		Timestamp: time.Now().UnixMilli(),
+	})
 }
 
 // Serve static assets from public/ directory with anti-cache headers
@@ -260,6 +264,24 @@ func handleStatic(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, absTarget)
 }
 
+func findModelDir() string {
+	if envModel := os.Getenv("MODEL_DIR"); envModel != "" {
+		return envModel
+	}
+	candidates := []string{
+		"./vendor/lw-ppocr-wasm",
+		"./models",
+		"/app/vendor/lw-ppocr-wasm",
+		"/app/models",
+	}
+	for _, dir := range candidates {
+		if _, err := os.Stat(filepath.Join(dir, "rec.lwm")); err == nil {
+			return dir
+		}
+	}
+	return "./vendor/lw-ppocr-wasm"
+}
+
 func main() {
 	_ = mime.AddExtensionType(".wasm", "application/wasm")
 	_ = mime.AddExtensionType(".js", "application/javascript; charset=utf-8")
@@ -281,12 +303,23 @@ func main() {
 	if envSample := os.Getenv("SAMPLE_PATH"); envSample != "" {
 		samplePath = envSample
 	}
-	if envCli := os.Getenv("CLI_SCRIPT"); envCli != "" {
-		cliScript = envCli
-	}
 
-	log.Println("[server] Ultra-Low-Memory mode enabled: Zero persistent background workers.")
-	log.Println("[server] Resident memory target: ~10MB. OCR inference executed on-demand.")
+	modelDir = findModelDir()
+
+	// Initialize resident Native C/AVX2 OCR Engine
+	var err error
+	nativeEngine, err = NewNativeOcrEngine(NativeEngineConfig{
+		ModelDir:      modelDir,
+		UseClassifier: true,
+		WorkerCount:   runtime.NumCPU(),
+		RecMaxWidth:   960,
+	})
+	if err != nil {
+		log.Fatalf("[server] Failed to initialize native C OCR engine: %v", err)
+	}
+	defer nativeEngine.Close()
+
+	log.Printf("[server] High-Performance Native C/AVX2 OCR Engine loaded from %s with %d workers\n", modelDir, runtime.NumCPU())
 
 	mux := http.NewServeMux()
 
