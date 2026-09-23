@@ -980,3 +980,259 @@ body {
     justify-content: space-between;
   }
 }
+
+/* ==========================================================================
+   Multi-Modal Document Pipeline Styles
+   ========================================================================== */
+
+/* 引擎模式选择器胶囊按钮 */
+.mode-selector-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mode-label {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.mode-pills {
+  display: inline-flex;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+}
+
+.mode-pill {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.mode-pill:hover {
+  color: var(--text-main);
+}
+
+.mode-pill.active {
+  background: var(--accent-gradient);
+  color: #fff;
+  box-shadow: 0 2px 8px var(--accent-glow);
+}
+
+/* Markdown 预览区 */
+.markdown-preview-card {
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  padding: 16px 20px;
+  color: #e2e8f0;
+  font-size: 0.92rem;
+  line-height: 1.7;
+}
+
+.markdown-empty-hint {
+  color: var(--text-dim);
+  font-style: italic;
+  padding: 30px 10px;
+  text-align: center;
+}
+
+.markdown-preview-card h2,
+.markdown-preview-card h3 {
+  color: #38bdf8;
+  margin-top: 14px;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.markdown-preview-card p {
+  margin-bottom: 12px;
+}
+
+.markdown-preview-card table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 14px 0;
+  font-size: 0.85rem;
+  background: rgba(15, 23, 42, 0.4);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid var(--glass-border);
+}
+
+.markdown-preview-card th {
+  background: rgba(56, 189, 248, 0.15);
+  color: #7dd3fc;
+  padding: 8px 12px;
+  text-align: left;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.markdown-preview-card td {
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  color: #cbd5e1;
+}
+
+.markdown-preview-card tr:nth-child(even) td {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.formula-display {
+  display: block;
+  background: rgba(251, 191, 36, 0.08);
+  border-left: 3px solid #fbbf24;
+  padding: 10px 16px;
+  margin: 12px 0;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  font-family: var(--font-mono);
+  color: #fde68a;
+  overflow-x: auto;
+}
+
+/* 版面区域列表卡片 */
+.layout-list-container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px;
+  overflow-y: auto;
+  max-height: 480px;
+}
+
+.layout-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  transition: var(--transition-fast);
+}
+
+.layout-card:hover {
+  border-color: rgba(99, 102, 241, 0.4);
+  transform: translateX(2px);
+}
+
+.layout-card-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.region-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
+.region-badge.text {
+  background: rgba(129, 140, 248, 0.2);
+  color: #a5b4fc;
+  border: 1px solid rgba(129, 140, 248, 0.4);
+}
+
+.region-badge.title {
+  background: rgba(56, 189, 248, 0.2);
+  color: #7dd3fc;
+  border: 1px solid rgba(56, 189, 248, 0.4);
+}
+
+.region-badge.table {
+  background: rgba(52, 211, 153, 0.2);
+  color: #6ee7b7;
+  border: 1px solid rgba(52, 211, 153, 0.4);
+}
+
+.region-badge.formula {
+  background: rgba(251, 191, 36, 0.2);
+  color: #fde68a;
+  border: 1px solid rgba(251, 191, 36, 0.4);
+}
+
+.region-badge.figure {
+  background: rgba(192, 132, 252, 0.2);
+  color: #d8b4fe;
+  border: 1px solid rgba(192, 132, 252, 0.4);
+}
+
+.region-badge.header,
+.region-badge.footer {
+  background: rgba(148, 163, 184, 0.2);
+  color: #cbd5e1;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+}
+
+/* 导出与操作动作按钮组 */
+.result-actions-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-export-zip {
+  background: rgba(99, 102, 241, 0.15) !important;
+  color: #a5b4fc !important;
+  border: 1px solid rgba(99, 102, 241, 0.35) !important;
+  transition: all var(--transition-fast) !important;
+}
+
+.btn-export-zip:hover:not(:disabled) {
+  background: rgba(99, 102, 241, 0.3) !important;
+  border-color: rgba(99, 102, 241, 0.7) !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 12px rgba(99, 102, 241, 0.35);
+  transform: translateY(-1px);
+}
+
+.btn-export-zip:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* Markdown 插图截取内联展示组件 */
+.figure-container {
+  margin: 18px 0;
+  text-align: center;
+  background: rgba(15, 23, 42, 0.65);
+  border: 1px solid rgba(192, 132, 252, 0.25);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+  transition: var(--transition-smooth);
+}
+
+.figure-container:hover {
+  border-color: rgba(192, 132, 252, 0.6);
+  box-shadow: 0 6px 24px rgba(192, 132, 252, 0.15);
+}
+
+.markdown-inline-figure {
+  max-width: 100%;
+  max-height: 420px;
+  border-radius: var(--radius-sm);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  object-fit: contain;
+  background: #ffffff;
+  padding: 4px;
+}
+
+.figure-caption {
+  display: none !important;
+}
+

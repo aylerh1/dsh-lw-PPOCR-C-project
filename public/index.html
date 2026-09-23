@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PP-OCR 极速离线文字识别 | DeepSeek Harness Web</title>
-  <meta name="description" content="基于纯 C/WASM 内核的轻量极速离线 OCR 识别服务，零外部依赖，常驻内存仅 ~10MB，支持图像文字框线高亮标注与 RESTful API 调用。">
-  <link rel="stylesheet" href="style.css?v=3.0.1">
+  <meta name="description" content="基于原生 C/AVX2 内核的轻量极速离线 OCR 与文档解析服务，零外部依赖，毫秒级响应，支持版面分析、表格提取与 Markdown 转换。">
+  <link rel="stylesheet" href="style.css?v=4.4.0">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -26,9 +26,9 @@
         <div class="brand-text">
           <div class="brand-title">
             <span class="gradient-text">PP-OCR.C</span>
-            <span class="version-tag">WASM v1.0</span>
+            <span class="version-tag">Native C11</span>
           </div>
-          <span class="brand-subtitle">DeepSeek Harness 轻量离线 OCR 引擎 (常驻 ~10MB)</span>
+          <span class="brand-subtitle">DeepSeek Harness 原生极速离线文档解析引擎</span>
         </div>
       </div>
 
@@ -154,7 +154,7 @@
 
         <!-- 拖拽上传空态 -->
         <div class="drop-zone" id="drop-zone">
-          <input type="file" id="file-input" accept="image/png,image/jpeg,image/bmp" class="file-input-hidden">
+          <input type="file" id="file-input" accept="*/*" class="file-input-hidden">
           <div class="drop-zone-content">
             <div class="upload-pulse-icon">
               <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
@@ -163,22 +163,28 @@
                 <line x1="12" y1="3" x2="12" y2="15"/>
               </svg>
             </div>
-            <p class="upload-title">点击选择图片，或拖拽文件到此处</p>
+            <p class="upload-title">点击选择文档或图片，或拖拽文件到此处</p>
             <p class="upload-hint">
-              支持直接按 <kbd>Ctrl</kbd> + <kbd>V</kbd> 粘贴屏幕截屏 · 支持 PNG / JPG / BMP
+              支持 AnyDoc 全矩阵格式：PDF、Word(DOCX)、Excel(XLSX/CSV)、PPT(PPTX)、HTML/RTF、TXT/MD/JSON 以及各类图像 · 支持 <kbd>Ctrl</kbd> + <kbd>V</kbd> 粘贴
             </p>
             <div class="upload-formats">
-              <span class="tag">单图极速识别</span>
-              <span class="tag">PNG</span>
-              <span class="tag">JPG/JPEG</span>
-              <span class="tag">BMP</span>
-              <span class="tag">Base64</span>
+              <span class="tag">PDF (双轨智能探测)</span>
+              <span class="tag">Word / DOCX</span>
+              <span class="tag">Excel / XLSX / CSV</span>
+              <span class="tag">PPT / PPTX</span>
+              <span class="tag">HTML / RTF / TXT</span>
+              <span class="tag">JSON / 数据</span>
+              <span class="tag">PNG / JPG / BMP 图像</span>
             </div>
           </div>
         </div>
 
-        <!-- 图片预览与 Canvas 标注覆盖容器 -->
+        <!-- 图片/文档预览与 Canvas 标注覆盖容器 -->
         <div class="preview-container hidden" id="preview-container">
+          <div class="inspector-banner hidden" id="inspector-banner" style="margin-bottom:10px;padding:8px 12px;border-radius:8px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);font-size:12px;display:flex;align-items:center;gap:8px;">
+            <span class="inspector-badge" id="inspector-badge" style="font-weight:600;padding:2px 8px;border-radius:4px;background:#3b82f6;color:#fff;">PDF-Inspector</span>
+            <span class="inspector-summary" id="inspector-summary" style="color:var(--text-primary, #e2e8f0);flex:1;"></span>
+          </div>
           <div class="canvas-viewport" id="canvas-viewport">
             <div class="stage-wrapper" id="stage-wrapper">
               <img id="preview-image" alt="OCR 待识别图片">
@@ -188,12 +194,13 @@
           </div>
 
           <div class="canvas-hint-bar">
-            <span>💡 鼠标悬停在彩色方框查看文本与置信度</span>
+            <span>💡 原内容仅标注布局识别类型 (FIGURE / TEXT / HEADER / TABLE)</span>
             <div class="action-hint-group">
               <button class="btn-link" id="btn-change-image" title="更换当前图片">更换图片</button>
               <div class="confidence-legend">
-                <span class="legend-item"><span class="color-dot high"></span>高置信度 (>85%)</span>
-                <span class="legend-item"><span class="color-dot med"></span>中置信度</span>
+                <span class="legend-item"><span class="color-dot" style="background:#a855f7"></span>插图 (FIGURE)</span>
+                <span class="legend-item"><span class="color-dot" style="background:#818cf8"></span>正文 (TEXT)</span>
+                <span class="legend-item"><span class="color-dot" style="background:#f59e0b"></span>页眉 (HEADER)</span>
               </div>
             </div>
           </div>
@@ -201,6 +208,17 @@
 
         <!-- 底部识别控制与微调 -->
         <div class="inference-bar">
+          <div class="mode-selector-wrap">
+            <span class="mode-label">引擎模式:</span>
+            <div class="mode-pills">
+              <button class="mode-pill" id="mode-ocr" data-mode="ocr" title="单页极速文字检测与识别 (15~30ms)">
+                ⚡ 极速 OCR
+              </button>
+              <button class="mode-pill active" id="mode-doc" data-mode="doc" title="PP-DocLayout-S 版面路由 + SLANet 表格 + LaTeX 公式 + 插图截取">
+                📑 深度多模态解析
+              </button>
+            </div>
+          </div>
           <div class="setting-controls">
             <label class="toggle-control" title="启用文字区域检测">
               <input type="checkbox" id="check-det" checked>
@@ -237,6 +255,23 @@
               </svg>
               全文文本
             </button>
+            <button class="tab-btn" data-tab="markdown-tab">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+              </svg>
+              Markdown 预览
+            </button>
+            <button class="tab-btn" data-tab="layout-tab">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+                <polyline points="2 17 12 22 22 17"></polyline>
+                <polyline points="2 12 12 17 22 12"></polyline>
+              </svg>
+              版面区域 (<span id="tab-layout-badge">0</span>)
+            </button>
             <button class="tab-btn" data-tab="lines-tab">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <rect x="3" y="3" width="7" height="7"></rect>
@@ -254,13 +289,23 @@
               RESTful JSON
             </button>
           </div>
-          <button class="btn btn-secondary btn-copy" id="btn-copy-result" title="复制全文结果">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-            </svg>
-            <span id="copy-btn-text">一键复制</span>
-          </button>
+          <div class="result-actions-group">
+            <button class="btn btn-secondary btn-export-zip" id="btn-export-zip" title="下载包含 Markdown 与插图的完整 ZIP 压缩包" disabled>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              <span id="export-zip-text">导出 MD (ZIP)</span>
+            </button>
+            <button class="btn btn-secondary btn-copy" id="btn-copy-result" title="复制全文结果">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+              </svg>
+              <span id="copy-btn-text">一键复制</span>
+            </button>
+          </div>
         </div>
 
         <div class="results-content-area">
@@ -273,14 +318,14 @@
               </svg>
             </div>
             <h3>等待图片输入</h3>
-            <p>上传或粘贴图片后，点击“开始极速识别”，提取完整文本并图上高亮标注框线。</p>
+            <p>上传或粘贴图片后，点击“开始识别”，自动提取文本、表格结构与数学公式并高亮标注。</p>
           </div>
 
           <!-- 加载中动画 -->
           <div class="loading-overlay hidden" id="loading-overlay">
             <div class="spinner-ring"></div>
-            <p class="loading-msg font-mono">WASM 推理计算中...</p>
-            <span class="loading-sub">纯本地 WASM 运行，按需执行，零常驻内存浪费</span>
+            <p class="loading-msg font-mono" id="loading-msg">推理计算中...</p>
+            <span class="loading-sub" id="loading-sub">PP-DocLayout-S 区域路由 + SLANet + FormulaNet + lw.PPOCR.C 原生加速</span>
           </div>
 
           <!-- 选项卡 1：全文文本视图 -->
@@ -288,14 +333,28 @@
             <textarea id="output-text" class="result-textarea" readonly placeholder="识别文本将显示在这里..."></textarea>
           </div>
 
-          <!-- 选项卡 2：分行详细列表 -->
+          <!-- 选项卡 2：Markdown 渲染与排版预览 -->
+          <div class="tab-pane hidden" id="markdown-tab">
+            <div class="markdown-preview-card" id="markdown-preview">
+              <div class="markdown-empty-hint">请在深度多模态解析模式下执行识别，此处将展示解析后的 Markdown、表格与 LaTeX 公式。</div>
+            </div>
+          </div>
+
+          <!-- 选项卡 3：版面区域结构树 -->
+          <div class="tab-pane hidden" id="layout-tab">
+            <div class="layout-list-container" id="layout-regions-list">
+              <!-- 动态插入版面卡片 -->
+            </div>
+          </div>
+
+          <!-- 选项卡 4：分行详细列表 -->
           <div class="tab-pane hidden" id="lines-tab">
             <div class="lines-list-container" id="lines-list">
               <!-- 动态插入每行卡片 -->
             </div>
           </div>
 
-          <!-- 选项卡 3：RESTful API 原始 JSON 响应 -->
+          <!-- 选项卡 5：RESTful API 原始 JSON 响应 -->
           <div class="tab-pane hidden" id="json-tab">
             <pre class="json-code-view"><code id="output-json" class="font-mono">// 等待识别生成 RESTful 结构化数据...</code></pre>
           </div>
@@ -317,23 +376,28 @@
         <span class="api-base-tag font-mono">POST /api/v1/ocr/recognitions</span>
       </div>
       <div class="api-doc-body">
-        <p class="api-desc">外部服务或第三方客户端可直接通过标准 HTTP POST 请求调用本容器进行图像文字识别：</p>
+        <p class="api-desc">外部服务或智能体可通过标准 HTTP POST 请求调用本容器进行图像极速识别与多模态版面路由深度解析：</p>
         <div class="code-snippet-box">
-          <pre class="font-mono"><code>curl.exe -X POST http://localhost:3000/api/v1/ocr/recognitions \
+          <pre class="font-mono"><code># 1. 深度多模态文档解析 (PP-DocLayout-S + SLANet 表格 + LaTeX 公式 + Markdown 重构)
+curl.exe -X POST http://localhost:3000/api/v1/document \
   -H "Content-Type: application/json" \
-  -d '{"image": "data:image/png;base64,...", "confidenceThreshold": 0.3}'</code></pre>
+  -d '{"file_path": "/app/test/fixtures/sample.png"}'
+
+# 2. 单页版面分析路由 (快速输出区域类型 Title, Text, Table, Formula 及坐标)
+curl.exe -X POST http://localhost:3000/api/v1/layout \
+  -H "Content-Type: application/json" \
+  -d '{"image": "data:image/png;base64,..."}'
+
+# 3. 极速纯文本 OCR (原生 C11 / AVX2，15~30ms 极速响应)
+curl.exe -X POST http://localhost:3000/api/v1/ocr \
+  -H "Content-Type: application/json" \
+  -d '{"file_path": "/app/test/fixtures/sample.png"}'</code></pre>
         </div>
       </div>
     </section>
-
-    <footer class="app-footer">
-      <span>dsh-lw-PPOCR-C-project &copy; 2026 · 基于 lw.PPOCR.C 纯 C/WASM 离线推理内核 · Powered by DeepSeek Harness</span>
-    </footer>
   </div>
 
-  <!-- 全局 Toast 提示通知 -->
-  <div class="toast-container" id="toast-container"></div>
-
-  <script src="app.js?v=3.0.1"></script>
+  <div id="toast" class="toast hidden"></div>
+  <script src="app.js?v=4.5.0"></script>
 </body>
 </html>

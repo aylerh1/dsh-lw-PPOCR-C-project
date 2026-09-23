@@ -16,7 +16,10 @@ RUN rm -rf build && \
 WORKDIR /build
 COPY go.mod ./
 COPY cmd/ ./cmd/
+COPY test/ ./test/
+COPY vendor/ ./vendor/
 RUN CGO_ENABLED=1 GOOS=linux go build -ldflags="-s -w" -o /build/server ./cmd/server
+RUN CGO_ENABLED=1 GOOS=linux go test -v ./cmd/server
 
 # Stage 2: Ultra-Minimal Native Runtime (~25MB total image size)
 FROM alpine:3.21

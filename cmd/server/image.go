@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"image"
 	_ "image/jpeg"
-	_ "image/png"
+	"image/png"
 	"os"
 	"strings"
 )
@@ -17,6 +17,34 @@ type BGRImage struct {
 	Width  int
 	Height int
 	Pixels []byte
+}
+
+// IsImageBytes checks if the raw bytes start with common image format magic bytes (PNG, JPEG, GIF, BMP, WebP)
+func IsImageBytes(data []byte) bool {
+	if len(data) < 4 {
+		return false
+	}
+	// PNG: 0x89 0x50 0x4E 0x47
+	if data[0] == 0x89 && data[1] == 'P' && data[2] == 'N' && data[3] == 'G' {
+		return true
+	}
+	// JPEG: 0xFF 0xD8 0xFF
+	if data[0] == 0xFF && data[1] == 0xD8 && data[2] == 0xFF {
+		return true
+	}
+	// BMP: "BM"
+	if data[0] == 0x42 && data[1] == 0x4D {
+		return true
+	}
+	// GIF: "GIF"
+	if data[0] == 'G' && data[1] == 'I' && data[2] == 'F' {
+		return true
+	}
+	// WebP: "RIFF....WEBP"
+	if len(data) >= 12 && string(data[0:4]) == "RIFF" && string(data[8:12]) == "WEBP" {
+		return true
+	}
+	return false
 }
 
 // DecodeImageToBGR decodes an input (file path, data URI, or base64 string)
@@ -58,6 +86,11 @@ func DecodeImageToBGR(input string) (*BGRImage, error) {
 		}
 	}
 
+	return DecodeRawBytesToBGR(rawBytes)
+}
+
+// DecodeRawBytesToBGR decodes uncompressed/compressed raw byte streams (PNG, JPEG, BMP) into BGRImage
+func DecodeRawBytesToBGR(rawBytes []byte) (*BGRImage, error) {
 	if len(rawBytes) == 0 {
 		return nil, errors.New("decoded image payload is empty")
 	}
@@ -194,3 +227,149 @@ func decodeBmpToBGR(buf []byte) (*BGRImage, error) {
 		Pixels: bgr,
 	}, nil
 }
+
+// CropBGR extracts a rectangular region [x, y, w, h] from BGRImage into a new BGRImage.
+// Coordinates outside image bounds are automatically clamped.
+func (img *BGRImage) CropBGR(x, y, w, h int) (*BGRImage, error) {
+	if img == nil || len(img.Pixels) == 0 {
+		return nil, errors.New("cannot crop from empty BGR image")
+	}
+
+	// Clamp boundaries
+	if x < 0 {
+		w += x
+		x = 0
+	}
+	if y < 0 {
+		h += y
+		y = 0
+	}
+	if x >= img.Width || y >= img.Height {
+		return nil, fmt.Errorf("crop origin (%d, %d) is outside image bounds (%dx%d)", x, y, img.Width, img.Height)
+	}
+	if x+w > img.Width {
+		w = img.Width - x
+	}
+	if y+h > img.Height {
+		h = img.Height - y
+	}
+	if w <= 0 || h <= 0 {
+		return nil, fmt.Errorf("invalid crop dimensions: %dx%d", w, h)
+	}
+
+	croppedPixels := make([]byte, w*h*3)
+	srcStride := img.Width * 3
+	dstStride := w * 3
+
+	for row := 0; row < h; row++ {
+		srcOffset := (y+row)*srcStride + x*3
+		dstOffset := row * dstStride
+		copy(croppedPixels[dstOffset:dstOffset+dstStride], img.Pixels[srcOffset:srcOffset+dstStride])
+	}
+
+	return &BGRImage{
+		Width:  w,
+		Height: h,
+		Pixels: croppedPixels,
+	}, nil
+}
+
+// ToRGBA converts continuous BGR8 bytes back to standard Go *image.RGBA
+func (img *BGRImage) ToRGBA() *image.RGBA {
+	if img == nil || img.Width <= 0 || img.Height <= 0 {
+		return image.NewRGBA(image.Rect(0, 0, 0, 0))
+	}
+
+	rgba := image.NewRGBA(image.Rect(0, 0, img.Width, img.Height))
+	for y := 0; y < img.Height; y++ {
+		srcRow := y * img.Width * 3
+		dstRow := y * rgba.Stride
+		for x := 0; x < img.Width; x++ {
+			s := srcRow + x*3
+			d := dstRow + x*4
+			rgba.Pix[d] = img.Pixels[s+2]   // R
+			rgba.Pix[d+1] = img.Pixels[s+1] // G
+			rgba.Pix[d+2] = img.Pixels[s]   // B
+			rgba.Pix[d+3] = 255            // A
+		}
+	}
+	return rgba
+}
+
+// EncodePNG encodes BGRImage to high-quality PNG bytes
+func (img *BGRImage) EncodePNG() ([]byte, error) {
+	if img == nil || len(img.Pixels) == 0 {
+		return nil, errors.New("cannot encode empty BGR image to PNG")
+	}
+
+	rgba := img.ToRGBA()
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, rgba); err != nil {
+		return nil, fmt.Errorf("png.Encode failed: %w", err)
+	}
+	return buf.Bytes(), nil
+}
+
+// FindTightContentBounds scans the specified sub-rectangle for foreground pixels (lines, shapes, drawings)
+// and returns a content-fitted bounding box [tightX, tightY, tightW, tightH] with breathing padding
+func (img *BGRImage) FindTightContentBounds(x, y, w, h int, padding int) [4]int {
+	if img == nil || len(img.Pixels) == 0 || w <= 0 || h <= 0 {
+		return [4]int{x, y, w, h}
+	}
+
+	startX := max(0, x)
+	startY := max(0, y)
+	endX := min(img.Width, x+w)
+	endY := min(img.Height, y+h)
+
+	if startX >= endX || startY >= endY {
+		return [4]int{x, y, w, h}
+	}
+
+	minX, minY := endX, endY
+	maxX, maxY := startX, startY
+	hasForeground := false
+	stride := img.Width * 3
+
+	// Step size 2 for sub-millisecond execution (<0.3ms)
+	step := 2
+	for r := startY; r < endY; r += step {
+		rowOffset := r * stride
+		for c := startX; c < endX; c += step {
+			off := rowOffset + c*3
+			b := int(img.Pixels[off])
+			g := int(img.Pixels[off+1])
+			red := int(img.Pixels[off+2])
+
+			// Foreground pixel: non-white content (lines, curves, labels, ink)
+			if (b < 238 || g < 238 || red < 238) && (b+g+red < 705) {
+				hasForeground = true
+				if c < minX {
+					minX = c
+				}
+				if c > maxX {
+					maxX = c
+				}
+				if r < minY {
+					minY = r
+				}
+				if r > maxY {
+					maxY = r
+				}
+			}
+		}
+	}
+
+	if !hasForeground || minX >= maxX || minY >= maxY {
+		return [4]int{x, y, w, h}
+	}
+
+	tightX := max(0, minX-padding)
+	tightY := max(0, minY-padding)
+	tightW := min(img.Width-tightX, (maxX-minX)+padding*2)
+	tightH := min(img.Height-tightY, (maxY-minY)+padding*2)
+
+	return [4]int{tightX, tightY, tightW, tightH}
+}
+
+
