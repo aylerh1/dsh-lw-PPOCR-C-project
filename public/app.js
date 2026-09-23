@@ -101,20 +101,33 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 2. Tab Switching
-  tabBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-      tabBtns.forEach(b => b.classList.remove('active'));
-      tabPanes.forEach(p => p.classList.add('hidden'));
-
-      btn.classList.add('active');
-      const targetId = btn.getAttribute('data-tab');
-      const targetPane = document.getElementById(targetId);
-      if (targetPane) {
-        targetPane.classList.remove('hidden');
+  // 2. Tab Switching (默认展示 Markdown 预览标签)
+  function switchTab(targetId) {
+    tabBtns.forEach(b => {
+      if (b.getAttribute('data-tab') === targetId) {
+        b.classList.add('active');
+      } else {
+        b.classList.remove('active');
       }
     });
+    tabPanes.forEach(p => {
+      if (p.id === targetId) {
+        p.classList.remove('hidden');
+      } else {
+        p.classList.add('hidden');
+      }
+    });
+  }
+
+  tabBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const targetId = btn.getAttribute('data-tab');
+      switchTab(targetId);
+    });
   });
+
+  // 默认启动时激活 Markdown 预览标签
+  switchTab('markdown-tab');
 
   // 3. AnyDoc Multi-Format File Loading
   function loadSingleFile(file) {
@@ -634,6 +647,8 @@ document.addEventListener('DOMContentLoaded', () => {
       data: data
     }, null, 2);
 
+    // 默认展示 Markdown 预览标签
+    switchTab('markdown-tab');
     drawBoundingBoxes();
   }
 
@@ -647,13 +662,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const formulaBlocks = [];
     text = text.replace(/\$\$([\s\S]*?)\$\$/g, (match, formula) => {
       const idx = formulaBlocks.length;
-      formulaBlocks.push(`<div class="formula-display">$$\n${escapeHtml(formula.trim())}\n$$</div>`);
+      formulaBlocks.push(`
+        <div class="formula-display-card">
+          <div class="formula-header">
+            <span class="formula-tag">LaTeX 独立公式</span>
+          </div>
+          <div class="formula-latex">${escapeHtml(formula.trim())}</div>
+        </div>
+      `);
       return `\n\n__FORMULA_BLOCK_${idx}__\n\n`;
     });
 
     // 2. Math inline: $...$
     text = text.replace(/\$([^\$\n]+)\$/g, (match, inline) => {
-      return `<code class="formula-inline">$${escapeHtml(inline)}$</code>`;
+      return `<span class="formula-chip"><span class="fx-icon">𝑓(𝑥)</span> ${escapeHtml(inline.trim())}</span>`;
     });
 
     // 3. Figures: ![caption](images/fig_X.png)
@@ -943,9 +965,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     try {
       await navigator.clipboard.writeText(textToCopy);
+      btnCopyResult.classList.add('copied');
       copyBtnText.textContent = '已复制！';
-      showToast('已成功复制到剪贴板', 'success');
-      setTimeout(() => copyBtnText.textContent = '一键复制', 2000);
+      showToast('已成功复制结果到剪贴板', 'success');
+      setTimeout(() => {
+        copyBtnText.textContent = '一键复制';
+        btnCopyResult.classList.remove('copied');
+      }, 2000);
     } catch (err) {
       showToast('复制失败，请手动选择复制', 'error');
     }

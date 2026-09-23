@@ -223,6 +223,20 @@ func (p *DocumentPipeline) Process(bgr *BGRImage) (*DocumentResult, error) {
 			go func(r LayoutRegion, img *BGRImage) {
 				defer wg.Done()
 				t0 := time.Now()
+				if r.Caption == "" && len(allLines) > 0 {
+					var matched []string
+					for _, l := range allLines {
+						midX := (l.Box[0][0] + l.Box[2][0]) / 2
+						midY := (l.Box[0][1] + l.Box[2][1]) / 2
+						if midX >= r.Rect[0]-15 && midX <= r.Rect[0]+r.Rect[2]+15 &&
+							midY >= r.Rect[1]-15 && midY <= r.Rect[1]+r.Rect[3]+15 {
+							matched = append(matched, l.Text)
+						}
+					}
+					if len(matched) > 0 {
+						r.Caption = strings.Join(matched, " ")
+					}
+				}
 				fml, fmlErr := p.formulaEngine.RecognizeFormula(r, img)
 				d := time.Since(t0).Milliseconds()
 				if fmlErr == nil && fml != nil {

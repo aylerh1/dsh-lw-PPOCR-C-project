@@ -179,6 +179,12 @@ func TestFormula_ConvertToLaTeX(t *testing.T) {
 	if !strings.Contains(latex, "\\le") {
 		t.Errorf("expected le conversion, got: %s", latex)
 	}
+
+	eulerRaw := "eiπ +1l= 0"
+	eulerLatex := ConvertToLaTeX(eulerRaw)
+	if eulerLatex != "e^{i\\pi} + 1 = 0" {
+		t.Errorf("expected Euler formula 'e^{i\\pi} + 1 = 0', got: %s", eulerLatex)
+	}
 }
 
 func TestTableEngine_Render(t *testing.T) {

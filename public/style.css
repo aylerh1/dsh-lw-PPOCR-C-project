@@ -1236,3 +1236,152 @@ body {
   display: none !important;
 }
 
+/* ==========================================================================
+   高对比度操作按钮样式优化 (解决“复制按钮显示不清楚”问题)
+   ========================================================================== */
+.btn-copy {
+  background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%) !important;
+  border: 1px solid #818cf8 !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  font-size: 0.85rem !important;
+  letter-spacing: 0.02em;
+  padding: 6px 14px !important;
+  border-radius: 6px !important;
+  box-shadow: 0 2px 10px rgba(79, 70, 229, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.25) !important;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease-in-out !important;
+}
+
+.btn-copy svg {
+  color: #ffffff !important;
+  stroke-width: 2.6 !important;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+}
+
+.btn-copy:hover {
+  background: linear-gradient(135deg, #4338ca 0%, #4f46e5 100%) !important;
+  border-color: #a5b4fc !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 18px rgba(99, 102, 241, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.4) !important;
+  transform: translateY(-1.5px);
+}
+
+.btn-copy:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 6px rgba(79, 70, 229, 0.4) !important;
+}
+
+.btn-copy.copied {
+  background: linear-gradient(135deg, #059669 0%, #10b981 100%) !important;
+  border-color: #34d399 !important;
+  box-shadow: 0 2px 12px rgba(16, 185, 129, 0.5) !important;
+}
+
+.btn-export-zip:not(:disabled) {
+  background: linear-gradient(135deg, #059669 0%, #10b981 100%) !important;
+  border: 1px solid #34d399 !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  font-size: 0.85rem !important;
+  letter-spacing: 0.02em;
+  padding: 6px 14px !important;
+  border-radius: 6px !important;
+  box-shadow: 0 2px 10px rgba(16, 185, 129, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.25) !important;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease-in-out !important;
+}
+
+.btn-export-zip:not(:disabled) svg {
+  color: #ffffff !important;
+  stroke-width: 2.6 !important;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+}
+
+.btn-export-zip:not(:disabled):hover {
+  background: linear-gradient(135deg, #047857 0%, #059669 100%) !important;
+  border-color: #6ee7b7 !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 18px rgba(16, 185, 129, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.4) !important;
+  transform: translateY(-1.5px);
+}
+
+/* ==========================================================================
+   数学公式与 LaTeX 排版组件 (支持行内与独立块公式)
+   ========================================================================== */
+.formula-display-card {
+  margin: 18px 0;
+  padding: 14px 18px;
+  background: linear-gradient(145deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.9) 100%);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  border-left: 4px solid #f59e0b;
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  transition: var(--transition-smooth);
+}
+
+.formula-display-card:hover {
+  border-color: rgba(251, 191, 36, 0.6);
+  box-shadow: 0 6px 20px rgba(245, 158, 11, 0.15);
+}
+
+.formula-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.formula-tag {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.formula-latex {
+  font-family: 'Cambria Math', 'KaTeX_Math', 'Times New Roman', serif;
+  font-size: 1.25rem;
+  color: #fef08a;
+  text-align: center;
+  padding: 10px 0;
+  letter-spacing: 0.02em;
+  line-height: 1.6;
+  overflow-x: auto;
+}
+
+.formula-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 2px 8px;
+  margin: 0 2px;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 6px;
+  font-family: 'Cambria Math', 'KaTeX_Math', 'Times New Roman', serif;
+  font-size: 1.05rem;
+  color: #fef08a;
+  vertical-align: middle;
+}
+
+.fx-icon {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-style: italic;
+  font-weight: 700;
+  color: #f59e0b;
+  opacity: 0.9;
+}
+
+

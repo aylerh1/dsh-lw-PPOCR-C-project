@@ -165,7 +165,7 @@ func (le *LayoutEngine) clusterAndClassifyRegions(bgr *BGRImage, pageW, pageH in
 		if (symbolCount >= 2 && len(text) < 30) || (symbolCount >= 1 && (strings.Contains(text, "f(x)") || strings.Contains(text, "y=") || strings.Contains(text, "x="))) {
 			boxes[i].classified = true
 			regions = append(regions, makeRegion(regionID, LayoutFormula, boxes[i].line.Score,
-				boxes[i].x1, boxes[i].y1, boxes[i].x2-boxes[i].x1, boxes[i].y2-boxes[i].y1, ""))
+				boxes[i].x1, boxes[i].y1, boxes[i].x2-boxes[i].x1, boxes[i].y2-boxes[i].y1, boxes[i].line.Text))
 			regionID++
 		}
 	}

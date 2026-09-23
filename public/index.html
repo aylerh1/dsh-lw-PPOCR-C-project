@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PP-OCR 极速离线文字识别 | DeepSeek Harness Web</title>
   <meta name="description" content="基于原生 C/AVX2 内核的轻量极速离线 OCR 与文档解析服务，零外部依赖，毫秒级响应，支持版面分析、表格提取与 Markdown 转换。">
-  <link rel="stylesheet" href="style.css?v=4.4.0">
+  <link rel="stylesheet" href="style.css?v=4.7.0">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -121,7 +121,7 @@
               <circle cx="8.5" cy="8.5" r="1.5"/>
               <polyline points="21 15 16 10 5 21"/>
             </svg>
-            图像输入与图上高亮
+            文件处理框 (多模态高亮)
           </h2>
           <div class="panel-actions">
             <button class="btn btn-secondary" id="btn-load-sample" title="加载系统内置 sample.png 测试图">
@@ -142,7 +142,7 @@
               </svg>
               下载带框图
             </button>
-            <button class="btn btn-secondary" id="btn-reset" title="清空图片与结果">
+            <button class="btn btn-secondary" id="btn-reset" title="清空文件与结果">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polyline points="1 4 1 10 7 10"></polyline>
                 <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
@@ -187,20 +187,23 @@
           </div>
           <div class="canvas-viewport" id="canvas-viewport">
             <div class="stage-wrapper" id="stage-wrapper">
-              <img id="preview-image" alt="OCR 待识别图片">
+              <img id="preview-image" alt="待处理文件预览">
               <canvas id="annotation-canvas"></canvas>
               <div class="hover-tooltip hidden" id="hover-tooltip"></div>
             </div>
           </div>
 
           <div class="canvas-hint-bar">
-            <span>💡 原内容仅标注布局识别类型 (FIGURE / TEXT / HEADER / TABLE)</span>
+            <span>💡 提示：版面布局识别仅对图片和 PDF 生效 (layout 支持类型: FIGURE / TEXT / TITLE / TABLE / FORMULA / HEADER / FOOTER)</span>
             <div class="action-hint-group">
-              <button class="btn-link" id="btn-change-image" title="更换当前图片">更换图片</button>
+              <button class="btn-link" id="btn-change-image" title="更换当前文件">更换文件</button>
               <div class="confidence-legend">
                 <span class="legend-item"><span class="color-dot" style="background:#a855f7"></span>插图 (FIGURE)</span>
                 <span class="legend-item"><span class="color-dot" style="background:#818cf8"></span>正文 (TEXT)</span>
-                <span class="legend-item"><span class="color-dot" style="background:#f59e0b"></span>页眉 (HEADER)</span>
+                <span class="legend-item"><span class="color-dot" style="background:#38bdf8"></span>标题 (TITLE)</span>
+                <span class="legend-item"><span class="color-dot" style="background:#34d399"></span>表格 (TABLE)</span>
+                <span class="legend-item"><span class="color-dot" style="background:#fbbf24"></span>公式 (FORMULA)</span>
+                <span class="legend-item"><span class="color-dot" style="background:#94a3b8"></span>页眉/页脚</span>
               </div>
             </div>
           </div>
@@ -246,16 +249,7 @@
       <section class="panel result-section glass-panel">
         <div class="panel-header">
           <div class="tabs-group">
-            <button class="tab-btn active" data-tab="text-tab">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="21" y1="10" x2="3" y2="10"></line>
-                <line x1="21" y1="6" x2="3" y2="6"></line>
-                <line x1="21" y1="14" x2="3" y2="14"></line>
-                <line x1="21" y1="18" x2="7" y2="18"></line>
-              </svg>
-              全文文本
-            </button>
-            <button class="tab-btn" data-tab="markdown-tab">
+            <button class="tab-btn active" data-tab="markdown-tab">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
                 <polyline points="14 2 14 8 20 8"></polyline>
@@ -263,6 +257,15 @@
                 <line x1="16" y1="17" x2="8" y2="17"></line>
               </svg>
               Markdown 预览
+            </button>
+            <button class="tab-btn" data-tab="text-tab">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="21" y1="10" x2="3" y2="10"></line>
+                <line x1="21" y1="6" x2="3" y2="6"></line>
+                <line x1="21" y1="14" x2="3" y2="14"></line>
+                <line x1="21" y1="18" x2="7" y2="18"></line>
+              </svg>
+              全文文本
             </button>
             <button class="tab-btn" data-tab="layout-tab">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -317,8 +320,8 @@
                 <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
               </svg>
             </div>
-            <h3>等待图片输入</h3>
-            <p>上传或粘贴图片后，点击“开始识别”，自动提取文本、表格结构与数学公式并高亮标注。</p>
+            <h3>等待文件输入</h3>
+            <p>上传或粘贴文件后，点击“开始极速识别/深度解析”，自动提取文本、表格结构与数学公式并高亮标注。</p>
           </div>
 
           <!-- 加载中动画 -->
@@ -328,16 +331,16 @@
             <span class="loading-sub" id="loading-sub">PP-DocLayout-S 区域路由 + SLANet + FormulaNet + lw.PPOCR.C 原生加速</span>
           </div>
 
-          <!-- 选项卡 1：全文文本视图 -->
-          <div class="tab-pane active" id="text-tab">
-            <textarea id="output-text" class="result-textarea" readonly placeholder="识别文本将显示在这里..."></textarea>
-          </div>
-
-          <!-- 选项卡 2：Markdown 渲染与排版预览 -->
-          <div class="tab-pane hidden" id="markdown-tab">
+          <!-- 选项卡 1：Markdown 渲染与排版预览 (默认激活) -->
+          <div class="tab-pane active" id="markdown-tab">
             <div class="markdown-preview-card" id="markdown-preview">
               <div class="markdown-empty-hint">请在深度多模态解析模式下执行识别，此处将展示解析后的 Markdown、表格与 LaTeX 公式。</div>
             </div>
+          </div>
+
+          <!-- 选项卡 2：全文文本视图 -->
+          <div class="tab-pane hidden" id="text-tab">
+            <textarea id="output-text" class="result-textarea" readonly placeholder="识别文本将显示在这里..."></textarea>
           </div>
 
           <!-- 选项卡 3：版面区域结构树 -->
@@ -398,6 +401,6 @@ curl.exe -X POST http://localhost:3000/api/v1/ocr \
   </div>
 
   <div id="toast" class="toast hidden"></div>
-  <script src="app.js?v=4.5.0"></script>
+  <script src="app.js?v=4.6.0"></script>
 </body>
 </html>
